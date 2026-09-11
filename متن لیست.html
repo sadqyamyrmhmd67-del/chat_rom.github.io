@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <title>ذخیره متن‌ها</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    input, button { padding: 10px; font-size: 16px; }
+    ul { margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+  <input type="text" id="textInput" placeholder="متن دلخواه بنویس">
+  <button onclick="saveText()">ذخیره</button>
+
+  <ul id="textList"></ul>
+
+  <script>
+    // بارگذاری متن‌های قبلی از localStorage
+    let texts = JSON.parse(localStorage.getItem("texts")) || [];
+
+    function renderList() {
+      const list = document.getElementById("textList");
+      list.innerHTML = "";
+      texts.forEach(text => {
+        const li = document.createElement("li");
+        li.textContent = text;
+        list.appendChild(li);
+      });
+    }
+
+    function saveText() {
+      const input = document.getElementById("textInput");
+      const value = input.value.trim();
+      if (value) {
+        texts.push(value);
+        localStorage.setItem("texts", JSON.stringify(texts));
+        input.value = "";
+        renderList();
+      }
+    }
+
+    renderList(); // نمایش اولیه لیست
+  </script>
+
+</body>
+</html>
