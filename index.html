@@ -6,21 +6,105 @@
     <title>بازی دوز آنلاین</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0"></script>
     <style>
-        body { font-family: Tahoma, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #1a1a2e; color: #eee; }
-        h1 { color: #e94560; }
-        #lobby, #game { display: none; text-align: center; }
+        body { font-family: Tahoma, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #1a1a2e; color: #eee; padding: 20px; }
+        h1 { color: #e94560; margin: 10px 0; }
+        #lobby, #game { display: none; text-align: center; width: 100%; max-width: 400px; }
         #lobby { display: block; }
-        button { padding: 12px 24px; font-size: 18px; cursor: pointer; background: #0f3460; color: #fff; border: none; border-radius: 8px; margin-top: 20px; }
+        button { padding: 12px 24px; font-size: 18px; cursor: pointer; background: #0f3460; color: #fff; border: none; border-radius: 8px; margin-top: 20px; transition: 0.2s; }
         button:hover { background: #16213e; }
         button:disabled { background: #555; cursor: not-allowed; }
         #status { margin-top: 15px; color: #aaa; }
-        .board { display: grid; grid-template-columns: repeat(3, 100px); grid-template-rows: repeat(3, 100px); gap: 8px; background: #16213e; padding: 10px; border-radius: 12px; margin: 20px 0; }
-        .cell { background: #0f3460; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 50px; font-weight: bold; cursor: pointer; user-select: none; transition: 0.2s; }
+        
+        .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: #16213e; padding: 10px; border-radius: 12px; margin: 20px auto; width: 100%; max-width: 320px; aspect-ratio: 1; }
+        .cell { background: #0f3460; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 50px; font-weight: bold; cursor: pointer; user-select: none; transition: 0.2s; aspect-ratio: 1; }
         .cell:hover { background: #1a1a4e; }
         .cell.x { color: #e94560; }
         .cell.o { color: #4ecdc4; }
-        #game-status { font-size: 20px; margin-bottom: 10px; height: 30px; }
+        #game-status { font-size: 20px; margin-bottom: 10px; min-height: 30px; font-weight: bold; }
         #turn-indicator { margin-bottom: 10px; color: #aaa; }
+        #game-status.win { color: #4ecdc4; }
+        #game-status.lose { color: #e94560; }
+        #game-status.draw { color: #f9ca24; }
+        
+        /* چت */
+        #chat-section {
+            margin-top: 20px;
+            background: #16213e;
+            border-radius: 12px;
+            padding: 10px;
+            width: 100%;
+            max-width: 320px;
+            box-sizing: border-box;
+        }
+        #chat-header {
+            font-size: 14px;
+            color: #aaa;
+            margin-bottom: 8px;
+            text-align: center;
+            border-bottom: 1px solid #0f3460;
+            padding-bottom: 6px;
+        }
+        #chat-messages {
+            height: 150px;
+            overflow-y: auto;
+            padding: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+        #chat-messages::-webkit-scrollbar { width: 4px; }
+        #chat-messages::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 4px; }
+        .chat-msg {
+            max-width: 75%;
+            padding: 6px 10px;
+            border-radius: 12px;
+            font-size: 13px;
+            word-wrap: break-word;
+            animation: fadeIn 0.2s;
+        }
+        .chat-msg.me {
+            background: #e94560;
+            color: #fff;
+            align-self: flex-end;
+            border-bottom-right-radius: 3px;
+        }
+        .chat-msg.opponent {
+            background: #0f3460;
+            color: #eee;
+            align-self: flex-start;
+            border-bottom-left-radius: 3px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        #chat-input-row {
+            display: flex;
+            gap: 6px;
+        }
+        #chat-input {
+            flex: 1;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: none;
+            background: #0f3460;
+            color: #fff;
+            font-family: Tahoma, sans-serif;
+            font-size: 13px;
+            outline: none;
+        }
+        #chat-input::placeholder { color: #888; }
+        #send-btn {
+            padding: 8px 14px;
+            font-size: 14px;
+            margin: 0;
+            border-radius: 8px;
+            background: #e94560;
+        }
+        #send-btn:hover { background: #c73650; }
+        
+        #restart-btn { margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -36,6 +120,17 @@
         <div id="game-status"></div>
         <div id="turn-indicator"></div>
         <div class="board" id="board"></div>
+        
+        <!-- بخش چت -->
+        <div id="chat-section">
+            <div id="chat-header">💬 چت با حریف</div>
+            <div id="chat-messages"></div>
+            <div id="chat-input-row">
+                <input type="text" id="chat-input" placeholder="پیامت رو بنویس..." maxlength="200">
+                <button id="send-btn">ارسال</button>
+            </div>
+        </div>
+        
         <button id="restart-btn" style="display:none;">بازی جدید</button>
     </div>
 
@@ -68,10 +163,16 @@
         const gameStatusDiv = document.getElementById('game-status');
         const turnIndicator = document.getElementById('turn-indicator');
         const restartBtn = document.getElementById('restart-btn');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('send-btn');
 
         let lobbyChannel = null;
         let gameChannel = null;
 
+        // ==========================================
+        // جستجوی حریف
+        // ==========================================
         findBtn.addEventListener('click', async () => {
             findBtn.disabled = true;
             statusP.textContent = 'وضعیت: در حال جستجوی حریف...';
@@ -81,7 +182,6 @@
 
             lobbyChannel
                 .on('broadcast', { event: 'looking-for-game' }, (payload) => {
-                    console.log('پیام جستجو دریافت شد:', payload);
                     const opponentId = payload.payload.playerId;
 
                     if (opponentId !== gameState.myPlayerId && !gameState.opponentConnected) {
@@ -99,33 +199,31 @@
                     }
                 })
                 .on('broadcast', { event: 'game-room-created' }, (payload) => {
-                    console.log('پیام ساخت اتاق:', payload);
                     const { roomId, creatorId } = payload.payload;
-
                     if (!gameState.opponentConnected && creatorId !== gameState.myPlayerId) {
                         startGame(roomId, creatorId);
                     }
                 })
                 .subscribe((status) => {
-                    console.log('وضعیت کانال لابی:', status);
                     if (status === 'SUBSCRIBED') {
                         lobbyChannel.send({
                             type: 'broadcast',
                             event: 'looking-for-game',
                             payload: { playerId: gameState.myPlayerId }
                         });
-                        console.log('پیام جستجو ارسال شد.');
                     }
                 });
         });
 
+        // ==========================================
+        // شروع بازی
+        // ==========================================
         function startGame(roomId, opponentId) {
             if (gameState.opponentConnected) return;
 
             gameState.opponentConnected = true;
             gameState.gameActive = true;
             gameState.mySymbol = (gameState.myPlayerId < opponentId) ? 'X' : 'O';
-            console.log('نماد من:', gameState.mySymbol);
 
             if (lobbyChannel) {
                 lobbyChannel.unsubscribe();
@@ -135,7 +233,9 @@
             lobbyDiv.style.display = 'none';
             gameDiv.style.display = 'block';
             boardDiv.innerHTML = '';
+            chatMessages.innerHTML = '';
             gameStatusDiv.textContent = 'حریف پیدا شد!';
+            gameStatusDiv.className = '';
 
             for (let i = 0; i < 9; i++) {
                 const cell = document.createElement('div');
@@ -157,6 +257,9 @@
             updateUI();
         }
 
+        // ==========================================
+        // کانال بازی (شامل حرکات + چت)
+        // ==========================================
         function setupGameChannel(roomId) {
             gameChannel = supabaseClient.channel(`game-${roomId}`);
 
@@ -167,12 +270,15 @@
                         makeMove(index, symbol);
                     }
                 })
+                .on('broadcast', { event: 'chat' }, (payload) => {
+                    addChatMessage(payload.payload.text, 'opponent');
+                })
                 .on('broadcast', { event: 'restart' }, () => {
                     resetGame();
                     gameStatusDiv.textContent = 'بازی از نو شروع شد!';
+                    gameStatusDiv.className = '';
                 })
                 .subscribe((status) => {
-                    console.log('وضعیت کانال بازی:', status);
                     if (status === 'SUBSCRIBED') {
                         turnIndicator.textContent = `شما ${gameState.mySymbol} هستید`;
                         updateUI();
@@ -180,6 +286,9 @@
                 });
         }
 
+        // ==========================================
+        // منطق بازی
+        // ==========================================
         function handleCellClick(index) {
             if (!gameState.gameActive) return;
             if (gameState.winner) return;
@@ -209,12 +318,26 @@
             if (winner) {
                 gameState.winner = winner;
                 gameState.gameActive = false;
-                gameStatusDiv.textContent = (winner === 'draw') ? 'مساوی!' : `برنده: ${winner}`;
+                showResult(winner);
                 restartBtn.style.display = 'block';
             } else {
                 gameState.currentPlayer = (gameState.currentPlayer === 'X') ? 'O' : 'X';
             }
             updateUI();
+        }
+
+        function showResult(winner) {
+            gameStatusDiv.className = '';
+            if (winner === 'draw') {
+                gameStatusDiv.textContent = '🤝 مساوی!';
+                gameStatusDiv.classList.add('draw');
+            } else if (winner === gameState.mySymbol) {
+                gameStatusDiv.textContent = '🎉 شما برنده شدید!';
+                gameStatusDiv.classList.add('win');
+            } else {
+                gameStatusDiv.textContent = '😢 شما باختید!';
+                gameStatusDiv.classList.add('lose');
+            }
         }
 
         function checkWinner(board) {
@@ -230,17 +353,57 @@
         }
 
         function updateUI() {
-            if (!gameState.gameActive) return;
+            if (!gameState.gameActive) {
+                turnIndicator.textContent = '';
+                return;
+            }
             if (gameState.winner) return;
             turnIndicator.textContent = (gameState.currentPlayer === gameState.mySymbol) ? 'نوبت شماست' : 'نوبت حریف';
         }
 
+        // ==========================================
+        // چت
+        // ==========================================
+        function addChatMessage(text, sender) {
+            const msg = document.createElement('div');
+            msg.classList.add('chat-msg', sender);
+            msg.textContent = text;
+            chatMessages.appendChild(msg);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function sendChat() {
+            const text = chatInput.value.trim();
+            if (!text) return;
+            if (!gameChannel) return;
+
+            addChatMessage(text, 'me');
+            gameChannel.send({
+                type: 'broadcast',
+                event: 'chat',
+                payload: { text: text }
+            });
+            chatInput.value = '';
+        }
+
+        sendBtn.addEventListener('click', sendChat);
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendChat();
+            }
+        });
+
+        // ==========================================
+        // بازی جدید (پاک کردن چت)
+        // ==========================================
         restartBtn.addEventListener('click', () => {
             if (gameChannel) {
                 gameChannel.send({ type: 'broadcast', event: 'restart', payload: {} });
             }
             resetGame();
             gameStatusDiv.textContent = 'بازی از نو شروع شد!';
+            gameStatusDiv.className = '';
         });
 
         function resetGame() {
@@ -249,12 +412,17 @@
             gameState.winner = null;
             gameState.gameActive = true;
             restartBtn.style.display = 'none';
+            
             document.querySelectorAll('.cell').forEach(cell => {
                 cell.textContent = '';
                 cell.className = 'cell';
             });
+            
+            // پاک کردن چت
+            chatMessages.innerHTML = '';
+            
             updateUI();
         }
     </script>
 </body>
-    </html>
+                </html>
