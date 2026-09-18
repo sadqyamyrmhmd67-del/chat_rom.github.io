@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>بازی دوز آنلاین</title>
-    <!-- نکته مهم: از نسخه 2.39.0 استفاده کن که پایدارتر است -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0"></script>
     <style>
         body { font-family: Tahoma, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #1a1a2e; color: #eee; }
@@ -42,10 +41,10 @@
 
     <script>
         // ==========================================
-        // تنظیمات Supabase (این دو مقدار را تغییر دهید)
+        // مقادیر Supabase تو
         // ==========================================
-        const SUPABASE_URL = 'آدرس_پروژه_خود_را_اینجا_بگذارید';
-        const SUPABASE_ANON_KEY = 'کلید_Anon_خود_را_اینجا_بگذارید';
+        const SUPABASE_URL = 'https://plpkixgydnsilujlwizi.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_-obcx5r6P_a4PmxF6_dikw_XIoW6OYQ';
 
         const { createClient } = supabase;
         const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -58,11 +57,8 @@
             opponentConnected: false,
             gameActive: false,
             roomId: null,
-            myPlayerId: null // یک شناسه یکتا برای خودم
+            myPlayerId: 'player_' + Math.random().toString(36).substring(2, 9)
         };
-
-        // تولید یک شناسه یکتا برای این بازیکن
-        gameState.myPlayerId = 'player_' + Math.random().toString(36).substring(2, 9);
 
         const lobbyDiv = document.getElementById('lobby');
         const gameDiv = document.getElementById('game');
@@ -76,85 +72,66 @@
         let lobbyChannel = null;
         let gameChannel = null;
 
-        // ==========================================
-        // ۱. جستجوی حریف با Broadcast (روش پایدار)
-        // ==========================================
         findBtn.addEventListener('click', async () => {
             findBtn.disabled = true;
             statusP.textContent = 'وضعیت: در حال جستجوی حریف...';
-            console.log('شروع جستجو با شناسه بازیکن:', gameState.myPlayerId);
+            console.log('شروع جستجو با شناسه:', gameState.myPlayerId);
 
-            // اتصال به یک کانال عمومی برای اعلام حضور
             lobbyChannel = supabaseClient.channel('public-lobby');
 
             lobbyChannel
                 .on('broadcast', { event: 'looking-for-game' }, (payload) => {
-                    console.log('پیام جستجوی حریف دریافت شد:', payload);
+                    console.log('پیام جستجو دریافت شد:', payload);
                     const opponentId = payload.payload.playerId;
 
-                    // اگر من هم در حال جستجو هستم و حریف دیگری پیدا شد
                     if (opponentId !== gameState.myPlayerId && !gameState.opponentConnected) {
-                        // یک شناسه اتاق یکتا بر اساس شناسه هر دو بازیکن بساز
                         const roomName = [gameState.myPlayerId, opponentId].sort().join('-');
                         gameState.roomId = roomName;
+                        console.log('حریف پیدا شد! اتاق:', roomName);
 
-                        console.log('حریف پیدا شد! ساخت اتاق:', roomName);
-
-                        // به حریف اطلاع بده که اتاق ساخته شده
                         lobbyChannel.send({
                             type: 'broadcast',
                             event: 'game-room-created',
                             payload: { roomId: roomName, creatorId: gameState.myPlayerId }
                         });
 
-                        // خودم بازی را شروع کن
                         startGame(roomName, opponentId);
                     }
                 })
                 .on('broadcast', { event: 'game-room-created' }, (payload) => {
-                    console.log('پیام ساخت اتاق دریافت شد:', payload);
+                    console.log('پیام ساخت اتاق:', payload);
                     const { roomId, creatorId } = payload.payload;
 
-                    // اگر من در حال جستجو هستم و این اتاق توسط حریف ساخته شده
                     if (!gameState.opponentConnected && creatorId !== gameState.myPlayerId) {
-                        console.log('به اتاق ساخته شده ملحق می‌شوم:', roomId);
                         startGame(roomId, creatorId);
                     }
                 })
                 .subscribe((status) => {
                     console.log('وضعیت کانال لابی:', status);
                     if (status === 'SUBSCRIBED') {
-                        // به محض اتصال، اعلام کن که در حال جستجوی حریف هستم
                         lobbyChannel.send({
                             type: 'broadcast',
                             event: 'looking-for-game',
                             payload: { playerId: gameState.myPlayerId }
                         });
-                        console.log('پیام جستجوی حریف ارسال شد.');
+                        console.log('پیام جستجو ارسال شد.');
                     }
                 });
         });
 
-        // ==========================================
-        // ۲. شروع بازی در یک اتاق اختصاصی
-        // ==========================================
         function startGame(roomId, opponentId) {
             if (gameState.opponentConnected) return;
 
             gameState.opponentConnected = true;
             gameState.gameActive = true;
-
-            // تعیین نماد: بر اساس مقایسه شناسه‌ها (کسی که شناسه‌اش کوچک‌تر است X می‌شود)
             gameState.mySymbol = (gameState.myPlayerId < opponentId) ? 'X' : 'O';
             console.log('نماد من:', gameState.mySymbol);
 
-            // بستن کانال لابی
             if (lobbyChannel) {
                 lobbyChannel.unsubscribe();
                 lobbyChannel = null;
             }
 
-            // نمایش صفحه بازی
             lobbyDiv.style.display = 'none';
             gameDiv.style.display = 'block';
             boardDiv.innerHTML = '';
@@ -180,9 +157,6 @@
             updateUI();
         }
 
-        // ==========================================
-        // ۳. کانال بازی
-        // ==========================================
         function setupGameChannel(roomId) {
             gameChannel = supabaseClient.channel(`game-${roomId}`);
 
@@ -206,9 +180,6 @@
                 });
         }
 
-        // ==========================================
-        // ۴. منطق بازی
-        // ==========================================
         function handleCellClick(index) {
             if (!gameState.gameActive) return;
             if (gameState.winner) return;
@@ -264,9 +235,6 @@
             turnIndicator.textContent = (gameState.currentPlayer === gameState.mySymbol) ? 'نوبت شماست' : 'نوبت حریف';
         }
 
-        // ==========================================
-        // ۵. بازی جدید
-        // ==========================================
         restartBtn.addEventListener('click', () => {
             if (gameChannel) {
                 gameChannel.send({ type: 'broadcast', event: 'restart', payload: {} });
