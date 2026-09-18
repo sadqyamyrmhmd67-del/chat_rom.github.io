@@ -34,7 +34,6 @@
         button:disabled { background: #555; cursor: not-allowed; }
         #status { margin-top: 15px; color: #aaa; }
         
-        /* استایل صفحه بازی */
         .board {
             display: grid;
             grid-template-columns: repeat(3, 100px);
@@ -68,14 +67,12 @@
 
     <h1>🎮 دوز آنلاین</h1>
 
-    <!-- بخش لابی (جستجوی حریف) -->
     <div id="lobby">
         <p>برای پیدا کردن حریف، روی دکمه زیر کلیک کن:</p>
         <button id="find-match-btn">جستجوی حریف</button>
         <p id="status">وضعیت: آماده</p>
     </div>
 
-    <!-- بخش بازی -->
     <div id="game">
         <div id="game-status"></div>
         <div id="turn-indicator"></div>
@@ -90,11 +87,9 @@
         const SUPABASE_URL = 'آدرس_پروژه_خود_را_اینجا_بگذارید';
         const SUPABASE_ANON_KEY = 'کلید_Anon_خود_را_اینجا_بگذارید';
 
-        // اتصال به Supabase
         const { createClient } = supabase;
         const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // وضعیت بازی
         let gameState = {
             board: Array(9).fill(null),
             currentPlayer: 'X',
@@ -105,7 +100,6 @@
             roomId: null
         };
 
-        // عناصر DOM
         const lobbyDiv = document.getElementById('lobby');
         const gameDiv = document.getElementById('game');
         const findBtn = document.getElementById('find-match-btn');
@@ -118,90 +112,90 @@
         let channel = null;
 
         // ==========================================
-        // ۱. جستجوی حریف (Matchmaking)
+        // ۱. جستجوی حریف (Matchmaking) - اصلاح شده
         // ==========================================
         findBtn.addEventListener('click', async () => {
             findBtn.disabled = true;
             statusP.textContent = 'وضعیت: در حال جستجوی حریف...';
 
-            // استفاده از یک کانال عمومی برای لابی
+            // اگه کانال قبلی هست، ببندش
+            if (channel) {
+                await channel.unsubscribe();
+                channel = null;
+            }
+
+            // 🔑 نکته کلیدی: presence.enabled باید صریحاً true باشد
             channel = supabaseClient.channel('matchmaking-lobby', {
                 config: {
-                    presence: { key: crypto.randomUUID() } // شناسه یکتا برای این بازیکن
+                    presence: { 
+                        key: crypto.randomUUID(),
+                        enabled: true  // 👈 این خط حیاتیه
+                    }
                 }
             });
 
-            // گوش دادن به حضور بازیکنان دیگر در لابی
             channel
                 .on('presence', { event: 'sync' }, () => {
                     const state = channel.presenceState();
                     const players = Object.keys(state);
+                    console.log('Players in lobby:', players);
 
-                    // اگر بازیکن دیگری غیر از خودم در لابی هست، چالش را شروع کن
-                    // (من اولین نفر هستم که دکمه را زدم، پس منتظر می‌مانم)
                     if (players.length >= 2 && !gameState.opponentConnected) {
-                        // به بازیکن دیگر اطلاع بده که حریف پیدا شد
-                        const opponentId = players.find(id => id !== channel.presenceKey);
-                        
-                        // ما یک اتاق خصوصی برای این دو نفر می‌سازیم
-                        // شناسه اتاق را از ترکیب شناسه دو بازیکن می‌سازیم تا برای هر دو یکسان باشد
                         const myId = channel.presenceKey;
+                        const opponentId = players.find(id => id !== myId);
+                        
+                        // ساخت شناسه اتاق یکتا
                         const roomName = [myId, opponentId].sort().join('-');
                         gameState.roomId = roomName;
                         
-                        // اعلام شروع بازی به حریف
+                        // اعلام شروع به حریف
                         channel.send({
                             type: 'broadcast',
                             event: 'game-found',
                             payload: { roomId: roomName }
                         });
 
-                        // خودم هم وارد اتاق بازی می‌شوم
                         startGame(roomName);
                     }
                 })
+                .on('broadcast', { event: 'game-found' }, (payload) => {
+                    if (!gameState.opponentConnected && payload.payload.roomId) {
+                        gameState.roomId = payload.payload.roomId;
+                        startGame(payload.payload.roomId);
+                    }
+                })
                 .subscribe(async (status) => {
+                    console.log('Channel status:', status);
                     if (status === 'SUBSCRIBED') {
-                        // خودم را در لابی ثبت می‌کنم
+                        // ثبت حضور بعد از اتصال موفق
                         await channel.track({ online_at: new Date().toISOString() });
+                        console.log('Tracked!');
                     }
                 });
-
-            // گوش دادن به پیام "بازی پیدا شد" (برای بازیکن دومی که وارد لابی شده)
-            channel.on('broadcast', { event: 'game-found' }, (payload) => {
-                if (!gameState.opponentConnected && payload.payload.roomId) {
-                    gameState.roomId = payload.payload.roomId;
-                    startGame(payload.payload.roomId);
-                }
-            });
         });
 
         // ==========================================
-        // ۲. شروع بازی در یک اتاق اختصاصی
+        // ۲. شروع بازی
         // ==========================================
         function startGame(roomId) {
-            if (gameState.opponentConnected) return; // اگر قبلاً شروع شده، دوباره اجرا نشود
+            if (gameState.opponentConnected) return;
             
             gameState.opponentConnected = true;
             gameState.gameActive = true;
             
-            // اگر من درخواست‌کننده بوده‌ام (اولین نفر در لابی)، نماد X را می‌گیرم
-            // (منطق ساده: کسی که roomId را ساخته، X می‌شود)
             const myId = channel.presenceKey;
-            const firstPlayerId = roomId.split('-')[0]; // چون sort شده، کوچک‌تر اول است
+            const firstPlayerId = roomId.split('-')[0];
             gameState.mySymbol = (myId === firstPlayerId) ? 'X' : 'O';
             
-            // قطع اتصال از کانال لابی
             if (channel) {
                 channel.unsubscribe();
+                channel = null;
             }
 
-            // نمایش صفحه بازی
             lobbyDiv.style.display = 'none';
             gameDiv.style.display = 'block';
             boardDiv.innerHTML = '';
             
-            // ساخت صفحه دوز
             for (let i = 0; i < 9; i++) {
                 const cell = document.createElement('div');
                 cell.classList.add('cell');
@@ -210,32 +204,35 @@
                 boardDiv.appendChild(cell);
             }
 
-            // اتصال به اتاق بازی (کانال خصوصی)
             setupGameChannel(roomId);
-
-            // تنظیم وضعیت اولیه
-            gameState.board = Array(9).fill(null);
-            gameState.currentPlayer = 'X';
-            gameState.winner = null;
-            updateUI();
+            resetGameState();
             gameStatusDiv.textContent = 'حریف پیدا شد!';
         }
 
+        function resetGameState() {
+            gameState.board = Array(9).fill(null);
+            gameState.currentPlayer = 'X';
+            gameState.winner = null;
+            gameState.gameActive = true;
+            updateUI();
+        }
+
         // ==========================================
-        // ۳. مدیریت کانال بازی
+        // ۳. کانال بازی - اصلاح شده
         // ==========================================
         function setupGameChannel(roomId) {
             const gameChannel = supabaseClient.channel(`game-${roomId}`, {
                 config: {
-                    presence: { key: channel.presenceKey } // شناسه خودم را نگه می‌دارم
+                    presence: { 
+                        key: channel.presenceKey,
+                        enabled: true  // 👈 برای اطمینان
+                    }
                 }
             });
 
-            // گوش دادن به حرکات حریف
             gameChannel
                 .on('broadcast', { event: 'move' }, (payload) => {
                     const { index, symbol } = payload.payload;
-                    // فقط اگر نوبت حریف بود و خانه خالی بود، حرکت را اعمال کن
                     if (symbol !== gameState.mySymbol && gameState.board[index] === null && gameState.gameActive) {
                         makeMove(index, symbol);
                     }
@@ -245,7 +242,6 @@
                     gameStatusDiv.textContent = 'بازی از نو شروع شد!';
                 })
                 .on('presence', { event: 'sync' }, () => {
-                    // اگر حریف قطع شد، بازی را متوقف کن
                     const state = gameChannel.presenceState();
                     const players = Object.keys(state);
                     if (players.length < 2 && gameState.gameActive) {
@@ -256,31 +252,26 @@
                 })
                 .subscribe(async (status) => {
                     if (status === 'SUBSCRIBED') {
-                        // به اتاق بپیوند
                         await gameChannel.track({ online: true });
-                        // نشان دادن نماد خودم
                         turnIndicator.textContent = `شما ${gameState.mySymbol} هستید`;
                         updateUI();
                     }
                 });
 
-            // ذخیره کانال در متغیر سراسری برای ارسال حرکت
             window.gameChannel = gameChannel;
         }
 
         // ==========================================
-        // ۴. منطق بازی و ارسال حرکت
+        // ۴. منطق بازی
         // ==========================================
         function handleCellClick(index) {
             if (!gameState.gameActive) return;
             if (gameState.winner) return;
             if (gameState.board[index] !== null) return;
-            if (gameState.currentPlayer !== gameState.mySymbol) return; // نوبت من نیست
+            if (gameState.currentPlayer !== gameState.mySymbol) return;
 
-            // انجام حرکت
             makeMove(index, gameState.mySymbol);
 
-            // ارسال حرکت به حریف
             if (window.gameChannel) {
                 window.gameChannel.send({
                     type: 'broadcast',
@@ -291,15 +282,13 @@
         }
 
         function makeMove(index, symbol) {
-            if (gameState.board[index] !== null) return; // خانه اشغال است
+            if (gameState.board[index] !== null) return;
 
-            // به‌روزرسانی وضعیت
             gameState.board[index] = symbol;
             const cell = document.querySelector(`.cell[data-index="${index}"]`);
             cell.textContent = symbol;
             cell.classList.add(symbol.toLowerCase());
 
-            // بررسی برد
             const winner = checkWinner(gameState.board);
             if (winner) {
                 gameState.winner = winner;
@@ -307,7 +296,6 @@
                 gameStatusDiv.textContent = (winner === 'draw') ? 'مساوی!' : `برنده: ${winner}`;
                 restartBtn.style.display = 'block';
             } else {
-                // تغییر نوبت
                 gameState.currentPlayer = (gameState.currentPlayer === 'X') ? 'O' : 'X';
             }
             updateUI();
@@ -315,9 +303,9 @@
 
         function checkWinner(board) {
             const lines = [
-                [0,1,2],[3,4,5],[6,7,8], // سطرها
-                [0,3,6],[1,4,7],[2,5,8], // ستون‌ها
-                [0,4,8],[2,4,6]           // قطرها
+                [0,1,2],[3,4,5],[6,7,8],
+                [0,3,6],[1,4,7],[2,5,8],
+                [0,4,8],[2,4,6]
             ];
             for (let line of lines) {
                 const [a,b,c] = line;
@@ -333,24 +321,15 @@
             if (!gameState.gameActive) return;
             if (gameState.winner) return;
 
-            if (gameState.currentPlayer === gameState.mySymbol) {
-                turnIndicator.textContent = 'نوبت شماست';
-            } else {
-                turnIndicator.textContent = 'نوبت حریف';
-            }
+            turnIndicator.textContent = (gameState.currentPlayer === gameState.mySymbol) ? 'نوبت شماست' : 'نوبت حریف';
         }
 
         // ==========================================
-        // ۵. درخواست بازی جدید
+        // ۵. بازی جدید
         // ==========================================
         restartBtn.addEventListener('click', () => {
-            // ارسال درخواست ریست به حریف
             if (window.gameChannel) {
-                window.gameChannel.send({
-                    type: 'broadcast',
-                    event: 'restart',
-                    payload: {}
-                });
+                window.gameChannel.send({ type: 'broadcast', event: 'restart', payload: {} });
             }
             resetGame();
             gameStatusDiv.textContent = 'بازی از نو شروع شد!';
