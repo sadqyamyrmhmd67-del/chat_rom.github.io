@@ -4,58 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>بازی دوز آنلاین</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- نکته مهم: از نسخه 2.39.0 استفاده کن که پایدارتر است -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0"></script>
     <style>
-        body {
-            font-family: Tahoma, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-            background: #1a1a2e;
-            color: #eee;
-        }
+        body { font-family: Tahoma, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #1a1a2e; color: #eee; }
         h1 { color: #e94560; }
         #lobby, #game { display: none; text-align: center; }
         #lobby { display: block; }
-        button {
-            padding: 12px 24px;
-            font-size: 18px;
-            cursor: pointer;
-            background: #0f3460;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            margin-top: 20px;
-        }
+        button { padding: 12px 24px; font-size: 18px; cursor: pointer; background: #0f3460; color: #fff; border: none; border-radius: 8px; margin-top: 20px; }
         button:hover { background: #16213e; }
         button:disabled { background: #555; cursor: not-allowed; }
         #status { margin-top: 15px; color: #aaa; }
-        
-        .board {
-            display: grid;
-            grid-template-columns: repeat(3, 100px);
-            grid-template-rows: repeat(3, 100px);
-            gap: 8px;
-            background: #16213e;
-            padding: 10px;
-            border-radius: 12px;
-            margin: 20px 0;
-        }
-        .cell {
-            background: #0f3460;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 50px;
-            font-weight: bold;
-            cursor: pointer;
-            user-select: none;
-            transition: 0.2s;
-        }
+        .board { display: grid; grid-template-columns: repeat(3, 100px); grid-template-rows: repeat(3, 100px); gap: 8px; background: #16213e; padding: 10px; border-radius: 12px; margin: 20px 0; }
+        .cell { background: #0f3460; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 50px; font-weight: bold; cursor: pointer; user-select: none; transition: 0.2s; }
         .cell:hover { background: #1a1a4e; }
         .cell.x { color: #e94560; }
         .cell.o { color: #4ecdc4; }
@@ -64,7 +25,6 @@
     </style>
 </head>
 <body>
-
     <h1>🎮 دوز آنلاین</h1>
 
     <div id="lobby">
@@ -97,8 +57,12 @@
             mySymbol: null,
             opponentConnected: false,
             gameActive: false,
-            roomId: null
+            roomId: null,
+            myPlayerId: null // یک شناسه یکتا برای خودم
         };
+
+        // تولید یک شناسه یکتا برای این بازیکن
+        gameState.myPlayerId = 'player_' + Math.random().toString(36).substring(2, 9);
 
         const lobbyDiv = document.getElementById('lobby');
         const gameDiv = document.getElementById('game');
@@ -109,93 +73,93 @@
         const turnIndicator = document.getElementById('turn-indicator');
         const restartBtn = document.getElementById('restart-btn');
 
-        let channel = null;
+        let lobbyChannel = null;
+        let gameChannel = null;
 
         // ==========================================
-        // ۱. جستجوی حریف (Matchmaking) - اصلاح شده
+        // ۱. جستجوی حریف با Broadcast (روش پایدار)
         // ==========================================
         findBtn.addEventListener('click', async () => {
             findBtn.disabled = true;
             statusP.textContent = 'وضعیت: در حال جستجوی حریف...';
+            console.log('شروع جستجو با شناسه بازیکن:', gameState.myPlayerId);
 
-            // اگه کانال قبلی هست، ببندش
-            if (channel) {
-                await channel.unsubscribe();
-                channel = null;
-            }
+            // اتصال به یک کانال عمومی برای اعلام حضور
+            lobbyChannel = supabaseClient.channel('public-lobby');
 
-            // 🔑 نکته کلیدی: presence.enabled باید صریحاً true باشد
-            channel = supabaseClient.channel('matchmaking-lobby', {
-                config: {
-                    presence: { 
-                        key: crypto.randomUUID(),
-                        enabled: true  // 👈 این خط حیاتیه
-                    }
-                }
-            });
+            lobbyChannel
+                .on('broadcast', { event: 'looking-for-game' }, (payload) => {
+                    console.log('پیام جستجوی حریف دریافت شد:', payload);
+                    const opponentId = payload.payload.playerId;
 
-            channel
-                .on('presence', { event: 'sync' }, () => {
-                    const state = channel.presenceState();
-                    const players = Object.keys(state);
-                    console.log('Players in lobby:', players);
-
-                    if (players.length >= 2 && !gameState.opponentConnected) {
-                        const myId = channel.presenceKey;
-                        const opponentId = players.find(id => id !== myId);
-                        
-                        // ساخت شناسه اتاق یکتا
-                        const roomName = [myId, opponentId].sort().join('-');
+                    // اگر من هم در حال جستجو هستم و حریف دیگری پیدا شد
+                    if (opponentId !== gameState.myPlayerId && !gameState.opponentConnected) {
+                        // یک شناسه اتاق یکتا بر اساس شناسه هر دو بازیکن بساز
+                        const roomName = [gameState.myPlayerId, opponentId].sort().join('-');
                         gameState.roomId = roomName;
-                        
-                        // اعلام شروع به حریف
-                        channel.send({
+
+                        console.log('حریف پیدا شد! ساخت اتاق:', roomName);
+
+                        // به حریف اطلاع بده که اتاق ساخته شده
+                        lobbyChannel.send({
                             type: 'broadcast',
-                            event: 'game-found',
-                            payload: { roomId: roomName }
+                            event: 'game-room-created',
+                            payload: { roomId: roomName, creatorId: gameState.myPlayerId }
                         });
 
-                        startGame(roomName);
+                        // خودم بازی را شروع کن
+                        startGame(roomName, opponentId);
                     }
                 })
-                .on('broadcast', { event: 'game-found' }, (payload) => {
-                    if (!gameState.opponentConnected && payload.payload.roomId) {
-                        gameState.roomId = payload.payload.roomId;
-                        startGame(payload.payload.roomId);
+                .on('broadcast', { event: 'game-room-created' }, (payload) => {
+                    console.log('پیام ساخت اتاق دریافت شد:', payload);
+                    const { roomId, creatorId } = payload.payload;
+
+                    // اگر من در حال جستجو هستم و این اتاق توسط حریف ساخته شده
+                    if (!gameState.opponentConnected && creatorId !== gameState.myPlayerId) {
+                        console.log('به اتاق ساخته شده ملحق می‌شوم:', roomId);
+                        startGame(roomId, creatorId);
                     }
                 })
-                .subscribe(async (status) => {
-                    console.log('Channel status:', status);
+                .subscribe((status) => {
+                    console.log('وضعیت کانال لابی:', status);
                     if (status === 'SUBSCRIBED') {
-                        // ثبت حضور بعد از اتصال موفق
-                        await channel.track({ online_at: new Date().toISOString() });
-                        console.log('Tracked!');
+                        // به محض اتصال، اعلام کن که در حال جستجوی حریف هستم
+                        lobbyChannel.send({
+                            type: 'broadcast',
+                            event: 'looking-for-game',
+                            payload: { playerId: gameState.myPlayerId }
+                        });
+                        console.log('پیام جستجوی حریف ارسال شد.');
                     }
                 });
         });
 
         // ==========================================
-        // ۲. شروع بازی
+        // ۲. شروع بازی در یک اتاق اختصاصی
         // ==========================================
-        function startGame(roomId) {
+        function startGame(roomId, opponentId) {
             if (gameState.opponentConnected) return;
-            
+
             gameState.opponentConnected = true;
             gameState.gameActive = true;
-            
-            const myId = channel.presenceKey;
-            const firstPlayerId = roomId.split('-')[0];
-            gameState.mySymbol = (myId === firstPlayerId) ? 'X' : 'O';
-            
-            if (channel) {
-                channel.unsubscribe();
-                channel = null;
+
+            // تعیین نماد: بر اساس مقایسه شناسه‌ها (کسی که شناسه‌اش کوچک‌تر است X می‌شود)
+            gameState.mySymbol = (gameState.myPlayerId < opponentId) ? 'X' : 'O';
+            console.log('نماد من:', gameState.mySymbol);
+
+            // بستن کانال لابی
+            if (lobbyChannel) {
+                lobbyChannel.unsubscribe();
+                lobbyChannel = null;
             }
 
+            // نمایش صفحه بازی
             lobbyDiv.style.display = 'none';
             gameDiv.style.display = 'block';
             boardDiv.innerHTML = '';
-            
+            gameStatusDiv.textContent = 'حریف پیدا شد!';
+
             for (let i = 0; i < 9; i++) {
                 const cell = document.createElement('div');
                 cell.classList.add('cell');
@@ -206,7 +170,6 @@
 
             setupGameChannel(roomId);
             resetGameState();
-            gameStatusDiv.textContent = 'حریف پیدا شد!';
         }
 
         function resetGameState() {
@@ -218,17 +181,10 @@
         }
 
         // ==========================================
-        // ۳. کانال بازی - اصلاح شده
+        // ۳. کانال بازی
         // ==========================================
         function setupGameChannel(roomId) {
-            const gameChannel = supabaseClient.channel(`game-${roomId}`, {
-                config: {
-                    presence: { 
-                        key: channel.presenceKey,
-                        enabled: true  // 👈 برای اطمینان
-                    }
-                }
-            });
+            gameChannel = supabaseClient.channel(`game-${roomId}`);
 
             gameChannel
                 .on('broadcast', { event: 'move' }, (payload) => {
@@ -241,24 +197,13 @@
                     resetGame();
                     gameStatusDiv.textContent = 'بازی از نو شروع شد!';
                 })
-                .on('presence', { event: 'sync' }, () => {
-                    const state = gameChannel.presenceState();
-                    const players = Object.keys(state);
-                    if (players.length < 2 && gameState.gameActive) {
-                        gameStatusDiv.textContent = 'حریف خارج شد!';
-                        gameState.gameActive = false;
-                        restartBtn.style.display = 'block';
-                    }
-                })
-                .subscribe(async (status) => {
+                .subscribe((status) => {
+                    console.log('وضعیت کانال بازی:', status);
                     if (status === 'SUBSCRIBED') {
-                        await gameChannel.track({ online: true });
                         turnIndicator.textContent = `شما ${gameState.mySymbol} هستید`;
                         updateUI();
                     }
                 });
-
-            window.gameChannel = gameChannel;
         }
 
         // ==========================================
@@ -272,8 +217,8 @@
 
             makeMove(index, gameState.mySymbol);
 
-            if (window.gameChannel) {
-                window.gameChannel.send({
+            if (gameChannel) {
+                gameChannel.send({
                     type: 'broadcast',
                     event: 'move',
                     payload: { index: index, symbol: gameState.mySymbol }
@@ -302,11 +247,7 @@
         }
 
         function checkWinner(board) {
-            const lines = [
-                [0,1,2],[3,4,5],[6,7,8],
-                [0,3,6],[1,4,7],[2,5,8],
-                [0,4,8],[2,4,6]
-            ];
+            const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
             for (let line of lines) {
                 const [a,b,c] = line;
                 if (board[a] && board[a] === board[b] && board[a] === board[c]) {
@@ -320,7 +261,6 @@
         function updateUI() {
             if (!gameState.gameActive) return;
             if (gameState.winner) return;
-
             turnIndicator.textContent = (gameState.currentPlayer === gameState.mySymbol) ? 'نوبت شماست' : 'نوبت حریف';
         }
 
@@ -328,8 +268,8 @@
         // ۵. بازی جدید
         // ==========================================
         restartBtn.addEventListener('click', () => {
-            if (window.gameChannel) {
-                window.gameChannel.send({ type: 'broadcast', event: 'restart', payload: {} });
+            if (gameChannel) {
+                gameChannel.send({ type: 'broadcast', event: 'restart', payload: {} });
             }
             resetGame();
             gameStatusDiv.textContent = 'بازی از نو شروع شد!';
@@ -341,7 +281,6 @@
             gameState.winner = null;
             gameState.gameActive = true;
             restartBtn.style.display = 'none';
-            
             document.querySelectorAll('.cell').forEach(cell => {
                 cell.textContent = '';
                 cell.className = 'cell';
@@ -350,4 +289,4 @@
         }
     </script>
 </body>
-</html>
+    </html>
