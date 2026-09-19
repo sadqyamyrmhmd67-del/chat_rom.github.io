@@ -2,68 +2,218 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>دوز آنلاین</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0"></script>
 <style>
-* { box-sizing: border-box; }
-body { font-family: Tahoma, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #1a1a2e; color: #eee; padding: 15px; }
-h1 { color: #e94560; margin: 5px 0 15px; font-size: 24px; }
-#lobby, #game { display: none; width: 100%; max-width: 380px; text-align: center; }
-#lobby { display: block; }
-button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #0f3460; color: #fff; border: none; border-radius: 8px; font-family: inherit; transition: 0.15s; }
-button:hover { background: #16213e; }
-button:disabled { background: #555; cursor: not-allowed; }
-#status { margin-top: 15px; color: #aaa; }
+:root {
+    --bg: #1a1613; --panel: #252019; --board-bg: #2f2820;
+    --cell: #3d342a; --cell-hover: #4a3f33; --line: #5c4f3f;
+    --text: #e8dfd0; --muted: #9a8d7a;
+    --gold: #c9a961; --gold-dim: #8a7548;
+    --red: #c94c4c; --blue: #5a8fc7; --green: #7ba05b;
+    --shadow: rgba(0,0,0,0.4);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+    font-family: 'Vazirmatn', Tahoma, system-ui, sans-serif;
+    background: var(--bg); color: var(--text);
+    margin: 0; padding: 16px; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+#app { width: 100%; max-width: 420px; }
 
-/* صفحه بازی */
-.board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: #16213e; padding: 10px; border-radius: 12px; margin: 15px auto; width: 100%; max-width: 300px; aspect-ratio: 1; }
-.cell { background: #0f3460; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 55px; font-weight: bold; cursor: pointer; user-select: none; aspect-ratio: 1; transition: background 0.15s; }
-.cell:hover:not(.taken) { background: #1a1a4e; }
+/* لابی */
+#lobby {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: 20px;
+    box-shadow: 0 8px 32px var(--shadow);
+}
+#profile-card {
+    background: rgba(0,0,0,0.2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 14px; margin-bottom: 18px;
+}
+#profile-title {
+    font-family: Georgia, serif; color: var(--gold);
+    font-size: 16px; letter-spacing: 1px; margin-bottom: 10px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+}
+.id-display {
+    font-size: 11px; color: var(--muted); margin-bottom: 10px;
+    font-family: monospace; direction: ltr; text-align: right;
+}
+.id-display span { color: var(--gold); }
+.name-label { font-size: 12px; color: var(--muted); margin-bottom: 5px; display: block; }
+.name-row { display: flex; gap: 6px; }
+#name-input {
+    flex: 1; min-width: 0; padding: 9px 12px; border-radius: 3px;
+    border: 1px solid var(--line); background: var(--cell);
+    color: var(--text); font-family: inherit; font-size: 13px; outline: none;
+}
+#name-input:focus { border-color: var(--gold-dim); }
+#save-name {
+    padding: 9px 16px; border-radius: 3px; border: 1px solid var(--gold);
+    background: var(--gold); color: #1a1613; font-weight: 700;
+    font-size: 12px; font-family: inherit; cursor: pointer;
+}
+#save-name:disabled { opacity: 0.5; cursor: not-allowed; }
+#name-status { margin-top: 8px; font-size: 11px; min-height: 14px; color: var(--muted); }
+#name-status.ok { color: var(--green); }
+#name-status.err { color: var(--red); }
+
+.divider {
+    height: 1px; background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+    margin: 16px 0; opacity: 0.5;
+}
+.size-label {
+    font-family: Georgia, serif; font-size: 13px; color: var(--gold);
+    margin-bottom: 10px; display: block; text-align: center;
+}
+.size-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 18px; }
+.size-btn {
+    background: var(--cell); border: 1px solid var(--line); color: var(--text);
+    border-radius: 3px; padding: 10px 4px; font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: Georgia, serif;
+}
+.size-btn.active { background: var(--gold); border-color: var(--gold); color: #1a1613; }
+.btn-primary {
+    width: 100%; padding: 14px; font-size: 14px; font-weight: 600;
+    color: #1a1613; background: var(--gold); border: 1px solid var(--gold);
+    border-radius: 4px; cursor: pointer; font-family: inherit; letter-spacing: 1px;
+}
+.btn-primary:disabled { background: #4a3f33; border-color: #4a3f33; color: var(--muted); cursor: not-allowed; }
+#status { margin-top: 14px; color: var(--muted); font-size: 12px; text-align: center; min-height: 18px; }
+
+/* بازی */
+#game { display: none; }
+.players-bar {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: 8px; margin-bottom: 12px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 4px; padding: 10px 8px;
+}
+.player { text-align: center; padding: 4px; border-radius: 3px; transition: background 0.3s; }
+.player.active { background: rgba(201,169,97,0.08); }
+.player-name {
+    font-family: Georgia, serif; font-size: 12px; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-weight: 600;
+}
+.player-name.me-x { color: var(--red); }
+.player-name.me-o { color: var(--blue); }
+.vs-mark { display: flex; align-items: center; color: var(--gold-dim); font-family: Georgia, serif; font-size: 12px; font-weight: 700; }
+
+#status-text {
+    text-align: center; font-family: Georgia, serif; font-size: 14px;
+    min-height: 22px; margin-bottom: 12px; color: var(--muted);
+}
+#status-text.my-turn { color: var(--green); }
+#status-text.win { color: var(--green); font-size: 18px; font-weight: 700; }
+#status-text.lose { color: var(--red); font-size: 18px; font-weight: 700; }
+#status-text.draw { color: var(--gold); font-size: 18px; font-weight: 700; }
+
+.board-wrap {
+    background: var(--board-bg); border: 2px solid var(--line);
+    border-radius: 6px; padding: 8px; margin-bottom: 14px;
+    box-shadow: 0 6px 20px var(--shadow);
+}
+.board {
+    display: grid; gap: 3px; aspect-ratio: 1; --n: 3;
+    grid-template-columns: repeat(var(--n), 1fr);
+    grid-template-rows: repeat(var(--n), 1fr);
+}
+.cell {
+    background: var(--cell); border: 1px solid rgba(0,0,0,0.2); border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none; font-weight: 700;
+    font-family: Georgia, serif;
+    font-size: calc(min(84vw, 380px) / var(--n) * 0.55);
+    color: transparent;
+}
 .cell.taken { cursor: default; }
-.cell.x { color: #e94560; }
-.cell.o { color: #4ecdc4; }
-.cell.x::after { content: 'X'; }
-.cell.o::after { content: 'O'; }
-
-#game-status { font-size: 18px; margin: 8px 0; min-height: 26px; font-weight: bold; }
-#turn-indicator { margin: 5px 0; color: #aaa; font-size: 14px; min-height: 20px; }
-#game-status.win { color: #4ecdc4; }
-#game-status.lose { color: #e94560; }
-#game-status.draw { color: #f9ca24; }
+.cell.x { color: var(--red); }
+.cell.o { color: var(--blue); }
+.cell.winner {
+    background: rgba(123,160,91,0.25); border-color: var(--green);
+    box-shadow: inset 0 0 0 1px var(--green);
+}
 
 /* چت */
-#chat-section { margin-top: 15px; background: #16213e; border-radius: 12px; padding: 10px; width: 100%; max-width: 300px; }
-#chat-header { font-size: 13px; color: #aaa; margin-bottom: 8px; border-bottom: 1px solid #0f3460; padding-bottom: 5px; }
-#chat-messages { height: 130px; overflow-y: auto; padding: 4px; display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px; }
-#chat-messages::-webkit-scrollbar { width: 4px; }
-#chat-messages::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 4px; }
-.chat-msg { max-width: 75%; padding: 6px 10px; border-radius: 12px; font-size: 13px; word-wrap: break-word; }
-.chat-msg.me { background: #e94560; color: #fff; align-self: flex-end; border-bottom-right-radius: 3px; }
-.chat-msg.opponent { background: #0f3460; color: #eee; align-self: flex-start; border-bottom-left-radius: 3px; }
-#chat-input-row { display: flex; gap: 6px; }
-#chat-input { flex: 1; padding: 8px 10px; border-radius: 8px; border: none; background: #0f3460; color: #fff; font-family: inherit; font-size: 13px; outline: none; min-width: 0; }
-#chat-input::placeholder { color: #888; }
-#send-btn { padding: 8px 14px; font-size: 13px; margin: 0; background: #e94560; }
-#send-btn:hover { background: #c73650; }
-#restart-btn { margin-top: 10px; }
+#chat { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+#chat-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
+    font-family: Georgia, serif; font-size: 13px; color: var(--gold);
+    background: rgba(0,0,0,0.15);
+}
+#lock-btn {
+    background: var(--cell); border: 1px solid var(--line); color: var(--text);
+    border-radius: 3px; padding: 5px 12px; font-size: 12px; cursor: pointer;
+}
+#lock-btn.locked { background: rgba(201,76,76,0.15); border-color: var(--red); color: #e8a0a0; }
+#lock-btn.other-locked { background: rgba(201,169,97,0.15); border-color: var(--gold-dim); color: var(--gold); cursor: not-allowed; }
+#chat-messages {
+    height: 120px; overflow-y: auto; padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.1);
+}
+.msg { max-width: 78%; padding: 7px 12px; border-radius: 4px; font-size: 13px; word-wrap: break-word; }
+.msg.me { background: var(--gold-dim); border: 1px solid var(--gold); align-self: flex-end; }
+.msg.opp { background: var(--cell); border: 1px solid var(--line); align-self: flex-start; }
+.msg.sys { color: var(--muted); font-size: 11px; align-self: center; font-style: italic; }
+#chat-input-row { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); background: rgba(0,0,0,0.15); }
+#chat-input {
+    flex: 1; min-width: 0; padding: 10px 12px; border-radius: 3px;
+    border: 1px solid var(--line); background: var(--cell); color: var(--text);
+    font-family: inherit; font-size: 13px; outline: none;
+}
+#chat-input:disabled { opacity: 0.4; }
+#send-btn {
+    padding: 10px 16px; border-radius: 3px; border: 1px solid var(--gold);
+    background: var(--gold); color: #1a1613; font-weight: 700;
+    font-size: 13px; font-family: inherit; cursor: pointer;
+}
+#send-btn:disabled { opacity: 0.4; cursor: not-allowed; background: var(--cell); color: var(--muted); }
+#restart-btn {
+    width: 100%; margin-top: 12px; padding: 14px; border-radius: 4px;
+    border: 1px solid var(--green); background: rgba(123,160,91,0.15);
+    color: #a8d18a; font-weight: 600; font-size: 14px;
+    font-family: inherit; cursor: pointer;
+}
 </style>
 </head>
 <body>
-<h1>🎮 دوز آنلاین</h1>
+<div id="app">
 
 <div id="lobby">
-    <p>برای پیدا کردن حریف کلیک کن:</p>
-    <button id="find-match-btn">جستجوی حریف</button>
-    <p id="status">وضعیت: آماده</p>
+    <div id="profile-card">
+        <div id="profile-title">پروفایل</div>
+        <div class="id-display">شناسه: <span id="id-display">...</span></div>
+        <label class="name-label">نام نمایشی</label>
+        <div class="name-row">
+            <input type="text" id="name-input" maxlength="20" placeholder="نام خود را وارد کنید">
+            <button id="save-name">ثبت</button>
+        </div>
+        <p id="name-status"></p>
+    </div>
+    <div class="divider"></div>
+    <label class="size-label">ابعاد صفحه</label>
+    <div class="size-grid" id="size-grid"></div>
+    <button class="btn-primary" id="find-btn">جستجوی حریف</button>
+    <p id="status">آماده</p>
 </div>
 
 <div id="game">
-    <div id="game-status"></div>
-    <div id="turn-indicator"></div>
-    <div class="board" id="board"></div>
-    <div id="chat-section">
-        <div id="chat-header">💬 چت با حریف</div>
+    <div class="players-bar">
+        <div class="player" id="me-player"><div class="player-name" id="me-name">من</div></div>
+        <div class="vs-mark">VS</div>
+        <div class="player" id="opp-player"><div class="player-name" id="opp-name">حریف</div></div>
+    </div>
+    <div id="status-text"></div>
+    <div class="board-wrap"><div class="board" id="board"></div></div>
+    <div id="chat">
+        <div id="chat-header">
+            <span>چت</span>
+            <button id="lock-btn">باز</button>
+        </div>
         <div id="chat-messages"></div>
         <div id="chat-input-row">
             <input type="text" id="chat-input" placeholder="پیام..." maxlength="200">
@@ -71,6 +221,7 @@ button:disabled { background: #555; cursor: not-allowed; }
         </div>
     </div>
     <button id="restart-btn" style="display:none;">بازی جدید</button>
+</div>
 </div>
 
 <script>
@@ -81,191 +232,350 @@ const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const state = {
-    board: Array(9).fill(null),
-    currentPlayer: 'X',
-    winner: null,
-    mySymbol: null,
-    started: false,
-    active: false,
-    myId: 'p_' + Math.random().toString(36).substring(2, 9)
+    myId: null, myName: null, oppId: null, oppName: 'حریف',
+    boardSize: 3, board: [], currentPlayer: 'X',
+    mySymbol: null, active: false, started: false, roomId: null,
+    chatLocked: false, iLocked: false, lastMsgTime: 0
 };
-
-const $ = id => document.getElementById(id);
-const lobbyDiv = $('lobby'), gameDiv = $('game'), findBtn = $('find-match-btn');
-const statusP = $('status'), boardDiv = $('board'), gameStatusDiv = $('game-status');
-const turnIndicator = $('turn-indicator'), restartBtn = $('restart-btn');
-const chatMessages = $('chat-messages'), chatInput = $('chat-input'), sendBtn = $('send-btn');
 
 let lobbyChannel = null, gameChannel = null;
 
-// ============ جستجوی حریف ============
-findBtn.addEventListener('click', async () => {
-    findBtn.disabled = true;
-    statusP.textContent = 'در حال جستجو...';
+const $ = id => document.getElementById(id);
+const lobbyEl = $('lobby'), gameEl = $('game'), sizeGrid = $('size-grid'), findBtn = $('find-btn');
+const statusEl = $('status'), boardEl = $('board'), statusText = $('status-text');
+const chatMsgs = $('chat-messages'), chatInput = $('chat-input'), sendBtn = $('send-btn');
+const lockBtn = $('lock-btn'), restartBtn = $('restart-btn');
+const idDisplay = $('id-display'), nameInput = $('name-input'), saveName = $('save-name'), nameStatus = $('name-status');
+const meName = $('me-name'), oppName = $('opp-name'), mePlayer = $('me-player'), oppPlayer = $('opp-player');
 
-    lobbyChannel = sb.channel('public-lobby');
+const fa = n => String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
+const sanitize = t => String(t).replace(/[<>"']/g, '').slice(0, 200);
+
+// راه‌اندازی با ورود ناشناس امن
+async function init() {
+    try {
+        const { data } = await sb.auth.signInAnonymously();
+        if (data?.user) state.myId = data.user.id;
+        else state.myId = crypto.randomUUID();
+    } catch {
+        state.myId = crypto.randomUUID();
+    }
+    idDisplay.textContent = state.myId.slice(0, 8);
+    const saved = localStorage.getItem('myName');
+    if (saved) {
+        state.myName = saved;
+        nameInput.value = saved;
+        meName.textContent = saved;
+        nameStatus.textContent = '✓ نام ذخیره شده';
+        nameStatus.className = 'ok';
+    }
+}
+init();
+
+// ذخیره نام با چک تکراری (سمت سرور)
+saveName.addEventListener('click', async () => {
+    const name = sanitize(nameInput.value.trim());
+    if (!name || name.length < 2) {
+        nameStatus.textContent = 'نام باید حداقل ۲ حرف باشد';
+        nameStatus.className = 'err';
+        return;
+    }
+    saveName.disabled = true;
+    nameStatus.textContent = 'در حال بررسی...';
+    nameStatus.className = '';
+
+    try {
+        const { data: existing } = await sb.from('profiles')
+            .select('id').eq('username', name).maybeSingle();
+
+        if (existing && existing.id !== state.myId) {
+            nameStatus.textContent = '✗ این نام قبلاً ثبت شده';
+            nameStatus.className = 'err';
+            saveName.disabled = false;
+            return;
+        }
+        const { error } = await sb.from('profiles')
+            .upsert({ id: state.myId, username: name }, { onConflict: 'id' });
+        if (error) throw error;
+
+        state.myName = name;
+        localStorage.setItem('myName', name);
+        meName.textContent = name;
+        nameStatus.textContent = '✓ نام ثبت شد';
+        nameStatus.className = 'ok';
+    } catch (e) {
+        state.myName = name;
+        localStorage.setItem('myName', name);
+        meName.textContent = name;
+        nameStatus.textContent = '✓ نام ذخیره شد';
+        nameStatus.className = 'ok';
+    } finally {
+        saveName.disabled = false;
+    }
+});
+
+// انتخاب ابعاد
+[3,4,5,6,7,8,9,10].forEach(n => {
+    const b = document.createElement('button');
+    b.className = 'size-btn' + (n === 3 ? ' active' : '');
+    b.textContent = `${fa(n)}×${fa(n)}`;
+    b.addEventListener('click', () => {
+        document.querySelectorAll('.size-btn').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        state.boardSize = n;
+    });
+    sizeGrid.appendChild(b);
+});
+
+// جستجوی حریف
+findBtn.addEventListener('click', async () => {
+    if (!state.myId) await new Promise(r => setTimeout(r, 500));
+    if (state.started) return;
+    findBtn.disabled = true;
+    statusEl.textContent = 'در حال جستجو...';
+
+    lobbyChannel = sb.channel('lobby-secure', { config: { broadcast: { self: false } } });
 
     lobbyChannel
         .on('broadcast', { event: 'looking' }, ({ payload }) => {
-            if (payload.playerId !== state.myId && !state.started) {
-                const room = [state.myId, payload.playerId].sort().join('-');
-                lobbyChannel.send({
-                    type: 'broadcast',
-                    event: 'room',
-                    payload: { room, creator: state.myId }
-                });
-                startGame(room, payload.playerId);
-            }
+            if (payload.id === state.myId || state.started) return;
+            const ids = [state.myId, payload.id].sort();
+            const room = 'r_' + ids[0].slice(0,8) + '_' + ids[1].slice(0,8);
+            lobbyChannel.send({
+                type: 'broadcast', event: 'room',
+                payload: { room, creator: state.myId, size: state.boardSize,
+                    creatorName: state.myName || 'کاربر ' + state.myId.slice(0,4),
+                    joinerName: payload.name }
+            });
+            enterGame(room, payload.id, state.boardSize, payload.name, state.myName);
         })
         .on('broadcast', { event: 'room' }, ({ payload }) => {
-            if (!state.started && payload.creator !== state.myId) {
-                startGame(payload.room, payload.creator);
-            }
+            if (state.started || payload.creator === state.myId) return;
+            enterGame(payload.room, payload.creator, payload.size, payload.creatorName, payload.joinerName);
         })
-        .subscribe(status => {
-            if (status === 'SUBSCRIBED') {
+        .subscribe(s => {
+            if (s === 'SUBSCRIBED') {
                 lobbyChannel.send({
-                    type: 'broadcast',
-                    event: 'looking',
-                    payload: { playerId: state.myId }
+                    type: 'broadcast', event: 'looking',
+                    payload: { id: state.myId, name: state.myName || 'کاربر ' + state.myId.slice(0,4) }
                 });
             }
         });
 });
 
-// ============ شروع بازی ============
-function startGame(room, opponentId) {
+// ورود به بازی
+function enterGame(room, oppId, size, oppNameFinal, myNameFinal) {
     if (state.started) return;
     state.started = true;
-    state.active = true;
-    state.mySymbol = (state.myId < opponentId) ? 'X' : 'O';
+    state.roomId = room;
+    state.oppId = oppId;
+    state.boardSize = size;
+    state.mySymbol = (state.myId < oppId) ? 'X' : 'O';
+    state.oppName = oppNameFinal || 'کاربر ' + oppId.slice(0,4);
 
     if (lobbyChannel) { lobbyChannel.unsubscribe(); lobbyChannel = null; }
 
-    lobbyDiv.style.display = 'none';
-    gameDiv.style.display = 'block';
-    boardDiv.innerHTML = '';
-    chatMessages.innerHTML = '';
-    gameStatusDiv.textContent = '';
-    gameStatusDiv.className = '';
+    lobbyEl.style.display = 'none';
+    gameEl.style.display = 'block';
+    meName.textContent = state.myName || myNameFinal || 'شما';
+    meName.className = 'player-name ' + (state.mySymbol === 'X' ? 'me-x' : 'me-o');
+    oppName.textContent = state.oppName;
 
-    for (let i = 0; i < 9; i++) {
+    buildBoard();
+    setupGameChannel();
+    resetGame(false);
+    addSysMsg('حریف پیدا شد');
+}
+
+function buildBoard() {
+    boardEl.innerHTML = '';
+    boardEl.style.setProperty('--n', state.boardSize);
+    const total = state.boardSize * state.boardSize;
+    for (let i = 0; i < total; i++) {
         const c = document.createElement('div');
         c.className = 'cell';
-        c.dataset.index = i;
         c.addEventListener('click', () => onCellClick(i));
-        boardDiv.appendChild(c);
+        boardEl.appendChild(c);
     }
-
-    setupGame(room);
-    resetState();
 }
 
-function resetState() {
-    state.board = Array(9).fill(null);
-    state.currentPlayer = 'X';
-    state.winner = null;
-    state.active = true;
-    updateUI();
-}
-
-// ============ کانال بازی ============
-function setupGame(room) {
-    gameChannel = sb.channel('game-' + room);
-
+function setupGameChannel() {
+    gameChannel = sb.channel('g_' + state.roomId, { config: { broadcast: { self: false } } });
     gameChannel
         .on('broadcast', { event: 'move' }, ({ payload }) => {
-            if (payload.symbol !== state.mySymbol && state.board[payload.index] === null && state.active) {
-                applyMove(payload.index, payload.symbol);
-            }
+            if (payload.symbol === state.mySymbol) return;
+            if (!state.active || state.board[payload.i] !== null) return;
+            if (state.currentPlayer !== payload.symbol) return;
+            applyMove(payload.i, payload.symbol);
         })
-        .on('broadcast', { event: 'chat' }, ({ payload }) => {
-            addMsg(payload.text, 'opponent');
+        .on('broadcast', { event: 'chat' }, ({ payload }) => addMsg(payload.text, 'opp'))
+        .on('broadcast', { event: 'lock' }, () => {
+            state.chatLocked = true; state.iLocked = false;
+            updateLockUI(); addSysMsg('چت توسط حریف قفل شد');
         })
-        .on('broadcast', { event: 'restart' }, () => {
-            resetGame();
+        .on('broadcast', { event: 'unlock' }, () => {
+            state.chatLocked = false; state.iLocked = false;
+            updateLockUI(); addSysMsg('چت باز شد');
         })
-        .subscribe(status => {
-            if (status === 'SUBSCRIBED') {
-                turnIndicator.textContent = `شما ${state.mySymbol} هستید`;
-                updateUI();
-            }
-        });
+        .on('broadcast', { event: 'restart' }, () => resetGame(true))
+        .subscribe();
 }
 
-// ============ کلیک روی خانه ============
-function onCellClick(i) {
-    if (!state.active || state.winner) return;
+// 🛡️ ضد تقلب: اول دیتابیس، بعد اعمال
+async function onCellClick(i) {
+    if (!state.active) return;
     if (state.board[i] !== null) return;
     if (state.currentPlayer !== state.mySymbol) return;
 
+    // تلاش برای ثبت حرکت در دیتابیس (ضد تقلب)
+    try {
+        const { error } = await sb.from('moves').insert({
+            game_id: state.roomId,
+            cell_index: i,
+            player_id: state.myId,
+            symbol: state.mySymbol
+        });
+
+        if (error) {
+            console.log('حرکت رد شد:', error.message);
+            return; // تقلب یا حرکت تکراری
+        }
+    } catch (e) {
+        console.log('خطای اعتبارسنجی:', e);
+        return;
+    }
+
+    // حرکت معتبر بود → اعمال
     applyMove(i, state.mySymbol);
     gameChannel.send({
-        type: 'broadcast',
-        event: 'move',
-        payload: { index: i, symbol: state.mySymbol }
+        type: 'broadcast', event: 'move',
+        payload: { i, symbol: state.mySymbol }
     });
 }
 
-// ============ اعمال حرکت ============
 function applyMove(i, symbol) {
     if (state.board[i] !== null) return;
     state.board[i] = symbol;
-    const cell = boardDiv.children[i];
-    cell.classList.add(symbol.toLowerCase(), 'taken');
+    const cell = boardEl.children[i];
+    cell.textContent = symbol;
+    cell.classList.add('taken', symbol.toLowerCase());
 
-    const w = checkWinner(state.board);
-    if (w) {
-        state.winner = w;
+    const result = checkWinner();
+    if (result) {
         state.active = false;
-        showResult(w);
+        if (result === 'draw') {
+            statusText.textContent = 'مساوی';
+            statusText.className = 'draw';
+        } else {
+            highlightWin(result.line);
+            if (result.winner === state.mySymbol) {
+                statusText.textContent = 'برنده شدید';
+                statusText.className = 'win';
+            } else {
+                statusText.textContent = 'باختید';
+                statusText.className = 'lose';
+            }
+        }
         restartBtn.style.display = 'block';
-    } else {
-        state.currentPlayer = state.currentPlayer === 'X' ? 'O' : 'X';
+        return;
     }
-    updateUI();
+    state.currentPlayer = state.currentPlayer === 'X' ? 'O' : 'X';
+    updateTurnUI();
 }
 
-function checkWinner(b) {
-    const L = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    for (const [a,c,d] of L) {
-        if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+function checkWinner() {
+    const n = state.boardSize;
+    const need = n === 3 ? 3 : 4;
+    const b = state.board;
+    for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+            const i = r * n + c;
+            const sym = b[i];
+            if (!sym) continue;
+            for (const [dr, dc] of [[0,1],[1,0],[1,1],[1,-1]]) {
+                const line = [i];
+                for (let k = 1; k < need; k++) {
+                    const nr = r + dr * k, nc = c + dc * k;
+                    if (nr < 0 || nr >= n || nc < 0 || nc >= n) break;
+                    if (b[nr * n + nc] !== sym) break;
+                    line.push(nr * n + nc);
+                }
+                if (line.length >= need) return { winner: sym, line };
+            }
+        }
     }
     return b.every(x => x) ? 'draw' : null;
 }
 
-function showResult(w) {
-    gameStatusDiv.className = '';
-    if (w === 'draw') {
-        gameStatusDiv.textContent = '🤝 مساوی!';
-        gameStatusDiv.classList.add('draw');
-    } else if (w === state.mySymbol) {
-        gameStatusDiv.textContent = '🎉 برنده شدی!';
-        gameStatusDiv.classList.add('win');
+function highlightWin(line) {
+    line.forEach(i => boardEl.children[i].classList.add('winner'));
+}
+
+function updateTurnUI() {
+    if (!state.active) return;
+    mePlayer.classList.toggle('active', state.currentPlayer === state.mySymbol);
+    oppPlayer.classList.toggle('active', state.currentPlayer !== state.mySymbol);
+    if (state.currentPlayer === state.mySymbol) {
+        statusText.textContent = 'نوبت شماست';
+        statusText.className = 'my-turn';
     } else {
-        gameStatusDiv.textContent = '😢 باختی!';
-        gameStatusDiv.classList.add('lose');
+        statusText.textContent = 'نوبت حریف';
+        statusText.className = '';
     }
-    turnIndicator.textContent = '';
 }
 
-function updateUI() {
-    if (!state.active || state.winner) return;
-    turnIndicator.textContent = state.currentPlayer === state.mySymbol ? 'نوبت شماست' : 'نوبت حریف';
+restartBtn.addEventListener('click', () => {
+    gameChannel.send({ type: 'broadcast', event: 'restart' });
+    resetGame(false);
+});
+
+function resetGame(fromOpp) {
+    const total = state.boardSize * state.boardSize;
+    state.board = Array(total).fill(null);
+    state.currentPlayer = 'X';
+    state.active = true;
+    state.chatLocked = false;
+    state.iLocked = false;
+    restartBtn.style.display = 'none';
+    statusText.textContent = '';
+    statusText.className = '';
+    [...boardEl.children].forEach(c => { c.textContent = ''; c.className = 'cell'; });
+    chatMsgs.innerHTML = '';
+    updateLockUI();
+    updateTurnUI();
+    if (fromOpp) addSysMsg('بازی جدید');
 }
 
-// ============ چت ============
+// 🛡️ چت با Rate Limit
 function addMsg(text, who) {
     const d = document.createElement('div');
-    d.className = 'chat-msg ' + who;
+    d.className = 'msg ' + who;
     d.textContent = text;
-    chatMessages.appendChild(d);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    chatMsgs.appendChild(d);
+    chatMsgs.scrollTop = chatMsgs.scrollHeight;
+    while (chatMsgs.children.length > 100) chatMsgs.removeChild(chatMsgs.firstChild);
+}
+
+function addSysMsg(text) {
+    const d = document.createElement('div');
+    d.className = 'msg sys';
+    d.textContent = text;
+    chatMsgs.appendChild(d);
+    chatMsgs.scrollTop = chatMsgs.scrollHeight;
 }
 
 function sendChat() {
-    const t = chatInput.value.trim();
-    if (!t || !gameChannel) return;
+    const t = sanitize(chatInput.value.trim());
+    if (!t || state.chatLocked || !gameChannel) return;
+
+    // 🛡️ Rate Limit: حداقل ۱ ثانیه بین پیام‌ها
+    const now = Date.now();
+    if (now - state.lastMsgTime < 1000) {
+        addSysMsg('کمی صبر کن...');
+        return;
+    }
+    state.lastMsgTime = now;
+
     addMsg(t, 'me');
     gameChannel.send({ type: 'broadcast', event: 'chat', payload: { text: t } });
     chatInput.value = '';
@@ -277,27 +587,32 @@ chatInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); sendChat(); }
 });
 
-// ============ بازی جدید ============
-restartBtn.addEventListener('click', () => {
-    if (gameChannel) gameChannel.send({ type: 'broadcast', event: 'restart', payload: {} });
-    resetGame();
+lockBtn.addEventListener('click', () => {
+    if (!gameChannel) return;
+    if (!state.chatLocked) {
+        state.chatLocked = true; state.iLocked = true;
+        gameChannel.send({ type: 'broadcast', event: 'lock' });
+        addSysMsg('شما چت را قفل کردید');
+        updateLockUI();
+    } else if (state.iLocked) {
+        state.chatLocked = false; state.iLocked = false;
+        gameChannel.send({ type: 'broadcast', event: 'unlock' });
+        addSysMsg('شما چت را باز کردید');
+        updateLockUI();
+    }
 });
 
-function resetGame() {
-    state.board = Array(9).fill(null);
-    state.currentPlayer = 'X';
-    state.winner = null;
-    state.active = true;
-    restartBtn.style.display = 'none';
-    gameStatusDiv.textContent = 'بازی جدید!';
-    gameStatusDiv.className = '';
-
-    [...boardDiv.children].forEach(c => {
-        c.className = 'cell';
-        c.textContent = '';
-    });
-    chatMessages.innerHTML = '';
-    updateUI();
+function updateLockUI() {
+    if (!state.chatLocked) {
+        lockBtn.textContent = 'باز'; lockBtn.className = '';
+        chatInput.disabled = false; sendBtn.disabled = false;
+    } else if (state.iLocked) {
+        lockBtn.textContent = 'قفل (کلیک=باز)'; lockBtn.className = 'locked';
+        chatInput.disabled = true; sendBtn.disabled = true;
+    } else {
+        lockBtn.textContent = 'قفل توسط حریف'; lockBtn.className = 'other-locked';
+        chatInput.disabled = true; sendBtn.disabled = true;
+    }
 }
 </script>
 </body>
