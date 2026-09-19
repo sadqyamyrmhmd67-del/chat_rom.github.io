@@ -16,14 +16,13 @@
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body {
-    font-family: 'Vazirmatn', Tahoma, system-ui, sans-serif;
+    font-family: Tahoma, system-ui, sans-serif;
     background: var(--bg); color: var(--text);
     margin: 0; padding: 16px; min-height: 100vh;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
 #app { width: 100%; max-width: 420px; }
 
-/* لابی */
 #lobby {
     background: var(--panel); border: 1px solid var(--line);
     border-radius: 6px; padding: 20px;
@@ -54,7 +53,7 @@ body {
 #save-name {
     padding: 9px 16px; border-radius: 3px; border: 1px solid var(--gold);
     background: var(--gold); color: #1a1613; font-weight: 700;
-    font-size: 12px; font-family: inherit; cursor: pointer;
+    font-size: 12px; cursor: pointer;
 }
 #save-name:disabled { opacity: 0.5; cursor: not-allowed; }
 #name-status { margin-top: 8px; font-size: 11px; min-height: 14px; color: var(--muted); }
@@ -79,12 +78,11 @@ body {
 .btn-primary {
     width: 100%; padding: 14px; font-size: 14px; font-weight: 600;
     color: #1a1613; background: var(--gold); border: 1px solid var(--gold);
-    border-radius: 4px; cursor: pointer; font-family: inherit; letter-spacing: 1px;
+    border-radius: 4px; cursor: pointer; letter-spacing: 1px;
 }
 .btn-primary:disabled { background: #4a3f33; border-color: #4a3f33; color: var(--muted); cursor: not-allowed; }
 #status { margin-top: 14px; color: var(--muted); font-size: 12px; text-align: center; min-height: 18px; }
 
-/* بازی */
 #game { display: none; }
 .players-bar {
     display: grid; grid-template-columns: 1fr auto 1fr;
@@ -128,7 +126,9 @@ body {
     font-family: Georgia, serif;
     font-size: calc(min(84vw, 380px) / var(--n) * 0.55);
     color: transparent;
+    transition: background 0.15s;
 }
+.cell:hover:not(.taken) { background: var(--cell-hover); }
 .cell.taken { cursor: default; }
 .cell.x { color: var(--red); }
 .cell.o { color: var(--blue); }
@@ -137,7 +137,6 @@ body {
     box-shadow: inset 0 0 0 1px var(--green);
 }
 
-/* چت */
 #chat { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
 #chat-header {
     display: flex; align-items: center; justify-content: space-between;
@@ -169,14 +168,13 @@ body {
 #send-btn {
     padding: 10px 16px; border-radius: 3px; border: 1px solid var(--gold);
     background: var(--gold); color: #1a1613; font-weight: 700;
-    font-size: 13px; font-family: inherit; cursor: pointer;
+    font-size: 13px; cursor: pointer;
 }
 #send-btn:disabled { opacity: 0.4; cursor: not-allowed; background: var(--cell); color: var(--muted); }
 #restart-btn {
     width: 100%; margin-top: 12px; padding: 14px; border-radius: 4px;
     border: 1px solid var(--green); background: rgba(123,160,91,0.15);
-    color: #a8d18a; font-weight: 600; font-size: 14px;
-    font-family: inherit; cursor: pointer;
+    color: #a8d18a; font-weight: 600; font-size: 14px; cursor: pointer;
 }
 </style>
 </head>
@@ -197,8 +195,8 @@ body {
     <div class="divider"></div>
     <label class="size-label">ابعاد صفحه</label>
     <div class="size-grid" id="size-grid"></div>
-    <button class="btn-primary" id="find-btn">جستجوی حریف</button>
-    <p id="status">آماده</p>
+    <button class="btn-primary" id="find-btn" disabled>در حال آماده‌سازی...</button>
+    <p id="status">لطفاً صبر کنید</p>
 </div>
 
 <div id="game">
@@ -225,12 +223,18 @@ body {
 </div>
 
 <script>
+// ==========================================
+// اتصال Supabase
+// ==========================================
 const SUPABASE_URL = 'https://plpkixgydnsilujlwizi.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_-obcx5r6P_a4PmxF6_dikw_XIoW6OYQ';
 
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ==========================================
+// وضعیت
+// ==========================================
 const state = {
     myId: null, myName: null, oppId: null, oppName: 'حریف',
     boardSize: 3, board: [], currentPlayer: 'X',
@@ -251,16 +255,26 @@ const meName = $('me-name'), oppName = $('opp-name'), mePlayer = $('me-player'),
 const fa = n => String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
 const sanitize = t => String(t).replace(/[<>"']/g, '').slice(0, 200);
 
-// راه‌اندازی با ورود ناشناس امن
+// ==========================================
+// راه‌اندازی
+// ==========================================
 async function init() {
+    // ساخت شناسه امن اول
+    state.myId = 'p_' + crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+    
+    // تلاش برای ورود ناشناس Supabase
     try {
-        const { data } = await sb.auth.signInAnonymously();
-        if (data?.user) state.myId = data.user.id;
-        else state.myId = crypto.randomUUID();
-    } catch {
-        state.myId = crypto.randomUUID();
+        const { data, error } = await sb.auth.signInAnonymously();
+        if (!error && data?.user) {
+            state.myId = data.user.id;
+        }
+    } catch (e) {
+        console.log('Auth failed, using local ID:', e);
     }
+    
     idDisplay.textContent = state.myId.slice(0, 8);
+    
+    // بازیابی نام از localStorage
     const saved = localStorage.getItem('myName');
     if (saved) {
         state.myName = saved;
@@ -269,10 +283,18 @@ async function init() {
         nameStatus.textContent = '✓ نام ذخیره شده';
         nameStatus.className = 'ok';
     }
+    
+    // آماده‌سازی دکمه جستجو
+    findBtn.disabled = false;
+    findBtn.textContent = 'جستجوی حریف';
+    statusEl.textContent = 'آماده';
 }
+
 init();
 
-// ذخیره نام با چک تکراری (سمت سرور)
+// ==========================================
+// ذخیره نام
+// ==========================================
 saveName.addEventListener('click', async () => {
     const name = sanitize(nameInput.value.trim());
     if (!name || name.length < 2) {
@@ -294,16 +316,20 @@ saveName.addEventListener('click', async () => {
             saveName.disabled = false;
             return;
         }
-        const { error } = await sb.from('profiles')
-            .upsert({ id: state.myId, username: name }, { onConflict: 'id' });
-        if (error) throw error;
-
+        
+        await sb.from('profiles').upsert(
+            { id: state.myId, username: name },
+            { onConflict: 'id' }
+        );
+        
         state.myName = name;
         localStorage.setItem('myName', name);
         meName.textContent = name;
         nameStatus.textContent = '✓ نام ثبت شد';
         nameStatus.className = 'ok';
     } catch (e) {
+        console.log(e);
+        // حتی اگه DB نبود، محلی ذخیره کن
         state.myName = name;
         localStorage.setItem('myName', name);
         meName.textContent = name;
@@ -314,7 +340,9 @@ saveName.addEventListener('click', async () => {
     }
 });
 
+// ==========================================
 // انتخاب ابعاد
+// ==========================================
 [3,4,5,6,7,8,9,10].forEach(n => {
     const b = document.createElement('button');
     b.className = 'size-btn' + (n === 3 ? ' active' : '');
@@ -327,9 +355,10 @@ saveName.addEventListener('click', async () => {
     sizeGrid.appendChild(b);
 });
 
+// ==========================================
 // جستجوی حریف
+// ==========================================
 findBtn.addEventListener('click', async () => {
-    if (!state.myId) await new Promise(r => setTimeout(r, 500));
     if (state.started) return;
     findBtn.disabled = true;
     statusEl.textContent = 'در حال جستجو...';
@@ -343,9 +372,11 @@ findBtn.addEventListener('click', async () => {
             const room = 'r_' + ids[0].slice(0,8) + '_' + ids[1].slice(0,8);
             lobbyChannel.send({
                 type: 'broadcast', event: 'room',
-                payload: { room, creator: state.myId, size: state.boardSize,
-                    creatorName: state.myName || 'کاربر ' + state.myId.slice(0,4),
-                    joinerName: payload.name }
+                payload: {
+                    room, creator: state.myId, size: state.boardSize,
+                    creatorName: state.myName || 'کاربر',
+                    joinerName: payload.name
+                }
             });
             enterGame(room, payload.id, state.boardSize, payload.name, state.myName);
         })
@@ -357,13 +388,15 @@ findBtn.addEventListener('click', async () => {
             if (s === 'SUBSCRIBED') {
                 lobbyChannel.send({
                     type: 'broadcast', event: 'looking',
-                    payload: { id: state.myId, name: state.myName || 'کاربر ' + state.myId.slice(0,4) }
+                    payload: { id: state.myId, name: state.myName || 'کاربر' }
                 });
             }
         });
 });
 
+// ==========================================
 // ورود به بازی
+// ==========================================
 function enterGame(room, oppId, size, oppNameFinal, myNameFinal) {
     if (state.started) return;
     state.started = true;
@@ -371,12 +404,13 @@ function enterGame(room, oppId, size, oppNameFinal, myNameFinal) {
     state.oppId = oppId;
     state.boardSize = size;
     state.mySymbol = (state.myId < oppId) ? 'X' : 'O';
-    state.oppName = oppNameFinal || 'کاربر ' + oppId.slice(0,4);
+    state.oppName = oppNameFinal || 'کاربر';
 
     if (lobbyChannel) { lobbyChannel.unsubscribe(); lobbyChannel = null; }
 
     lobbyEl.style.display = 'none';
     gameEl.style.display = 'block';
+    
     meName.textContent = state.myName || myNameFinal || 'شما';
     meName.className = 'player-name ' + (state.mySymbol === 'X' ? 'me-x' : 'me-o');
     oppName.textContent = state.oppName;
@@ -399,60 +433,76 @@ function buildBoard() {
     }
 }
 
+// ==========================================
+// کانال بازی
+// ==========================================
 function setupGameChannel() {
     gameChannel = sb.channel('g_' + state.roomId, { config: { broadcast: { self: false } } });
+    
     gameChannel
         .on('broadcast', { event: 'move' }, ({ payload }) => {
-            if (payload.symbol === state.mySymbol) return;
-            if (!state.active || state.board[payload.i] !== null) return;
-            if (state.currentPlayer !== payload.symbol) return;
+            // 🛡️ ضد تقلب: چک‌های متعدد
+            if (payload.symbol === state.mySymbol) return; // حریف نباید نماد من رو بفرسته
+            if (!state.active) return;
+            if (state.board[payload.i] !== null) return; // خونه پره
+            if (state.currentPlayer !== payload.symbol) return; // نوبت درست نیست
+            if (payload.i < 0 || payload.i >= state.board.length) return; // خارج از صفحه
+            
             applyMove(payload.i, payload.symbol);
         })
-        .on('broadcast', { event: 'chat' }, ({ payload }) => addMsg(payload.text, 'opp'))
+        .on('broadcast', { event: 'chat' }, ({ payload }) => {
+            if (payload.text) addMsg(sanitize(payload.text), 'opp');
+        })
         .on('broadcast', { event: 'lock' }, () => {
-            state.chatLocked = true; state.iLocked = false;
-            updateLockUI(); addSysMsg('چت توسط حریف قفل شد');
+            state.chatLocked = true;
+            state.iLocked = false;
+            updateLockUI();
+            addSysMsg('چت توسط حریف قفل شد');
         })
         .on('broadcast', { event: 'unlock' }, () => {
-            state.chatLocked = false; state.iLocked = false;
-            updateLockUI(); addSysMsg('چت باز شد');
+            state.chatLocked = false;
+            state.iLocked = false;
+            updateLockUI();
+            addSysMsg('چت باز شد');
         })
-        .on('broadcast', { event: 'restart' }, () => resetGame(true))
+        .on('broadcast', { event: 'restart' }, () => {
+            resetGame(true);
+        })
         .subscribe();
 }
 
-// 🛡️ ضد تقلب: اول دیتابیس، بعد اعمال
-async function onCellClick(i) {
+// ==========================================
+// کلیک روی خانه (✅ فوری، بدون انتظار)
+// ==========================================
+function onCellClick(i) {
     if (!state.active) return;
     if (state.board[i] !== null) return;
     if (state.currentPlayer !== state.mySymbol) return;
+    if (i < 0 || i >= state.board.length) return;
 
-    // تلاش برای ثبت حرکت در دیتابیس (ضد تقلب)
-    try {
-        const { error } = await sb.from('moves').insert({
-            game_id: state.roomId,
-            cell_index: i,
-            player_id: state.myId,
-            symbol: state.mySymbol
-        });
-
-        if (error) {
-            console.log('حرکت رد شد:', error.message);
-            return; // تقلب یا حرکت تکراری
-        }
-    } catch (e) {
-        console.log('خطای اعتبارسنجی:', e);
-        return;
-    }
-
-    // حرکت معتبر بود → اعمال
+    // ✅ ۱. اول حرکت رو فوری اعمال کن
     applyMove(i, state.mySymbol);
+    
+    // ✅ ۲. همزمان به حریف بفرست
     gameChannel.send({
         type: 'broadcast', event: 'move',
         payload: { i, symbol: state.mySymbol }
     });
+
+    // ✅ ۳. در پس‌زمینه توی دیتابیس ذخیره کن (ضد تقلب)
+    sb.from('moves').insert({
+        game_id: state.roomId,
+        cell_index: i,
+        player_id: state.myId,
+        symbol: state.mySymbol
+    }).then(({ error }) => {
+        if (error) console.log('DB log:', error.message);
+    }).catch(e => console.log('DB error:', e));
 }
 
+// ==========================================
+// اعمال حرکت
+// ==========================================
 function applyMove(i, symbol) {
     if (state.board[i] !== null) return;
     state.board[i] = symbol;
@@ -464,15 +514,15 @@ function applyMove(i, symbol) {
     if (result) {
         state.active = false;
         if (result === 'draw') {
-            statusText.textContent = 'مساوی';
+            statusText.textContent = '🤝 مساوی';
             statusText.className = 'draw';
         } else {
             highlightWin(result.line);
             if (result.winner === state.mySymbol) {
-                statusText.textContent = 'برنده شدید';
+                statusText.textContent = '🎉 برنده شدید';
                 statusText.className = 'win';
             } else {
-                statusText.textContent = 'باختید';
+                statusText.textContent = '😢 باختید';
                 statusText.className = 'lose';
             }
         }
@@ -483,6 +533,9 @@ function applyMove(i, symbol) {
     updateTurnUI();
 }
 
+// ==========================================
+// تشخیص برنده
+// ==========================================
 function checkWinner() {
     const n = state.boardSize;
     const need = n === 3 ? 3 : 4;
@@ -516,16 +569,19 @@ function updateTurnUI() {
     mePlayer.classList.toggle('active', state.currentPlayer === state.mySymbol);
     oppPlayer.classList.toggle('active', state.currentPlayer !== state.mySymbol);
     if (state.currentPlayer === state.mySymbol) {
-        statusText.textContent = 'نوبت شماست';
+        statusText.textContent = '✋ نوبت شماست';
         statusText.className = 'my-turn';
     } else {
-        statusText.textContent = 'نوبت حریف';
+        statusText.textContent = '⏳ نوبت حریف';
         statusText.className = '';
     }
 }
 
+// ==========================================
+// ریست
+// ==========================================
 restartBtn.addEventListener('click', () => {
-    gameChannel.send({ type: 'broadcast', event: 'restart' });
+    if (gameChannel) gameChannel.send({ type: 'broadcast', event: 'restart' });
     resetGame(false);
 });
 
@@ -546,7 +602,9 @@ function resetGame(fromOpp) {
     if (fromOpp) addSysMsg('بازی جدید');
 }
 
-// 🛡️ چت با Rate Limit
+// ==========================================
+// چت
+// ==========================================
 function addMsg(text, who) {
     const d = document.createElement('div');
     d.className = 'msg ' + who;
@@ -567,15 +625,12 @@ function addSysMsg(text) {
 function sendChat() {
     const t = sanitize(chatInput.value.trim());
     if (!t || state.chatLocked || !gameChannel) return;
-
-    // 🛡️ Rate Limit: حداقل ۱ ثانیه بین پیام‌ها
+    
+    // Rate limit: حداقل ۵۰۰ میلی‌ثانیه بین پیام‌ها
     const now = Date.now();
-    if (now - state.lastMsgTime < 1000) {
-        addSysMsg('کمی صبر کن...');
-        return;
-    }
+    if (now - state.lastMsgTime < 500) return;
     state.lastMsgTime = now;
-
+    
     addMsg(t, 'me');
     gameChannel.send({ type: 'broadcast', event: 'chat', payload: { text: t } });
     chatInput.value = '';
@@ -587,33 +642,44 @@ chatInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); sendChat(); }
 });
 
+// ==========================================
+// قفل چت
+// ==========================================
 lockBtn.addEventListener('click', () => {
     if (!gameChannel) return;
     if (!state.chatLocked) {
-        state.chatLocked = true; state.iLocked = true;
+        state.chatLocked = true;
+        state.iLocked = true;
         gameChannel.send({ type: 'broadcast', event: 'lock' });
-        addSysMsg('شما چت را قفل کردید');
+        addSysMsg('🔒 شما چت را قفل کردید');
         updateLockUI();
     } else if (state.iLocked) {
-        state.chatLocked = false; state.iLocked = false;
+        state.chatLocked = false;
+        state.iLocked = false;
         gameChannel.send({ type: 'broadcast', event: 'unlock' });
-        addSysMsg('شما چت را باز کردید');
+        addSysMsg('🔓 شما چت را باز کردید');
         updateLockUI();
     }
 });
 
 function updateLockUI() {
     if (!state.chatLocked) {
-        lockBtn.textContent = 'باز'; lockBtn.className = '';
-        chatInput.disabled = false; sendBtn.disabled = false;
+        lockBtn.textContent = 'باز';
+        lockBtn.className = '';
+        chatInput.disabled = false;
+        sendBtn.disabled = false;
     } else if (state.iLocked) {
-        lockBtn.textContent = 'قفل (کلیک=باز)'; lockBtn.className = 'locked';
-        chatInput.disabled = true; sendBtn.disabled = true;
+        lockBtn.textContent = 'قفل (کلیک=باز)';
+        lockBtn.className = 'locked';
+        chatInput.disabled = true;
+        sendBtn.disabled = true;
     } else {
-        lockBtn.textContent = 'قفل توسط حریف'; lockBtn.className = 'other-locked';
-        chatInput.disabled = true; sendBtn.disabled = true;
+        lockBtn.textContent = 'قفل توسط حریف';
+        lockBtn.className = 'other-locked';
+        chatInput.disabled = true;
+        sendBtn.disabled = true;
     }
 }
 </script>
 </body>
-    </html>
+                              </html>
