@@ -64,12 +64,13 @@ body {
     background: var(--cell); border: 1px solid var(--line); color: var(--text);
     border-radius: 3px; padding: 10px 4px; font-size: 13px; font-weight: 600;
     cursor: pointer; font-family: Georgia, serif;
+    touch-action: manipulation;
 }
 .size-btn.active { background: var(--gold); border-color: var(--gold); color: #1a1613; }
 .btn-primary {
     width: 100%; padding: 14px; font-size: 14px; font-weight: 600;
     color: #1a1613; background: var(--gold); border: 1px solid var(--gold);
-    border-radius: 4px; cursor: pointer;
+    border-radius: 4px; cursor: pointer; touch-action: manipulation;
 }
 .btn-primary:disabled { background: #4a3f33; border-color: #4a3f33; color: var(--muted); }
 #status { margin-top: 14px; color: var(--muted); font-size: 12px; text-align: center; min-height: 18px; }
@@ -104,6 +105,7 @@ body {
     display: grid; gap: 3px; aspect-ratio: 1; --n: 3;
     grid-template-columns: repeat(var(--n), 1fr);
     grid-template-rows: repeat(var(--n), 1fr);
+    touch-action: manipulation;
 }
 .cell {
     background: var(--cell); border: 1px solid rgba(0,0,0,0.2);
@@ -111,9 +113,11 @@ body {
     cursor: pointer; user-select: none; font-weight: 700;
     font-family: Georgia, serif;
     font-size: calc(min(84vw, 380px) / var(--n) * 0.55);
-    color: transparent; transition: background 0.15s;
+    color: transparent;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
-.cell:hover:not(.taken) { background: var(--cell-hover); }
 .cell.taken { cursor: default; }
 .cell.x { color: var(--red); }
 .cell.o { color: var(--blue); }
@@ -128,6 +132,7 @@ body {
 #lock-btn {
     background: var(--cell); border: 1px solid var(--line); color: var(--text);
     border-radius: 3px; padding: 5px 12px; font-size: 12px; cursor: pointer;
+    touch-action: manipulation;
 }
 #lock-btn.locked { background: rgba(201,76,76,0.15); border-color: var(--red); color: #e8a0a0; }
 #lock-btn.other-locked { background: rgba(201,169,97,0.15); border-color: var(--gold-dim); color: var(--gold); }
@@ -149,12 +154,14 @@ body {
 #send-btn {
     padding: 10px 16px; border-radius: 3px; border: 1px solid var(--gold);
     background: var(--gold); color: #1a1613; font-weight: 700; font-size: 13px; cursor: pointer;
+    touch-action: manipulation;
 }
 #send-btn:disabled { opacity: 0.4; }
 #restart-btn {
     width: 100%; margin-top: 12px; padding: 14px; border-radius: 4px;
     border: 1px solid var(--green); background: rgba(123,160,91,0.15);
     color: #a8d18a; font-weight: 600; font-size: 14px; cursor: pointer;
+    touch-action: manipulation;
 }
 </style>
 </head>
@@ -213,7 +220,7 @@ const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ============================================
-// وضعیت بازی
+// وضعیت
 // ============================================
 const state = {
     myId: null,
@@ -253,10 +260,8 @@ const clean = t => String(t).replace(/[<>"']/g, '').slice(0, 200);
 // راه‌اندازی
 // ============================================
 async function init() {
-    // ساخت شناسه UUID امن
     state.myId = crypto.randomUUID();
     
-    // تلاش برای ورود ناشناس
     try {
         const { data, error } = await sb.auth.signInAnonymously();
         if (!error && data && data.user) {
@@ -271,7 +276,6 @@ async function init() {
     
     idDisplay.textContent = state.myId.slice(0, 8);
     
-    // بازیابی نام از حافظه
     const saved = localStorage.getItem('myName');
     if (saved) {
         state.myName = saved;
@@ -289,7 +293,7 @@ async function init() {
 init();
 
 // ============================================
-// ثبت نام (چک تکراری)
+// ثبت نام
 // ============================================
 saveName.addEventListener('click', async () => {
     const name = clean(nameInput.value.trim());
@@ -310,26 +314,18 @@ saveName.addEventListener('click', async () => {
     nameStatus.textContent = 'در حال بررسی...';
     nameStatus.className = '';
     
-    // چک تکراری بودن از دیتابیس
+    // چک تکراری
     let isDuplicate = false;
     try {
         const { data, error } = await sb
             .from('profiles')
-            .select('id, username')
+            .select('id')
             .eq('username', name);
         
-        if (error) {
-            console.log('Check error:', error.message);
-        } else if (data && data.length > 0) {
-            // اگه همین اسم برای شخص دیگه‌ای ثبت شده
-            const otherId = data[0].id;
-            if (otherId !== state.myId) {
-                isDuplicate = true;
-            }
+        if (!error && data && data.length > 0) {
+            if (data[0].id !== state.myId) isDuplicate = true;
         }
-    } catch (e) {
-        console.log('Check exception:', e);
-    }
+    } catch (e) {}
     
     if (isDuplicate) {
         nameStatus.textContent = '✗ این نام قبلاً توسط شخص دیگری ثبت شده، نام دیگری انتخاب کنید';
@@ -338,7 +334,7 @@ saveName.addEventListener('click', async () => {
         return;
     }
     
-    // ذخیره در دیتابیس
+    // ذخیره
     let saved = false;
     try {
         const { error } = await sb
@@ -348,23 +344,17 @@ saveName.addEventListener('click', async () => {
         if (!error) {
             saved = true;
         } else if (error.code === '23505') {
-            // خطای unique violation
             nameStatus.textContent = '✗ این نام قبلاً توسط شخص دیگری ثبت شده، نام دیگری انتخاب کنید';
             nameStatus.className = 'err';
             saveName.disabled = false;
             return;
-        } else {
-            console.log('Save error:', error.message);
         }
-    } catch (e) {
-        console.log('Save exception:', e);
-    }
+    } catch (e) {}
     
-    // موفق
     state.myName = name;
     localStorage.setItem('myName', name);
     meName.textContent = name;
-    nameStatus.textContent = saved ? '✓ نام با موفقیت ثبت شد' : '✓ نام ذخیره شد (آفلاین)';
+    nameStatus.textContent = saved ? '✓ نام با موفقیت ثبت شد' : '✓ نام ذخیره شد';
     nameStatus.className = 'ok';
     saveName.disabled = false;
 });
@@ -390,7 +380,6 @@ saveName.addEventListener('click', async () => {
 findBtn.addEventListener('click', async () => {
     if (state.started) return;
     
-    // اجبار به ثبت نام
     if (!state.myName || state.myName.length < 2) {
         statusEl.textContent = '❌ اول نام خود را ثبت کنید';
         statusEl.style.color = '#c94c4c';
@@ -406,7 +395,7 @@ findBtn.addEventListener('click', async () => {
     findBtn.disabled = true;
     statusEl.textContent = 'در حال جستجو...';
     
-    lobbyChannel = sb.channel('lobby-v6', { config: { broadcast: { self: false } } });
+    lobbyChannel = sb.channel('lobby-v7', { config: { broadcast: { self: false } } });
     
     lobbyChannel
         .on('broadcast', { event: 'looking' }, ({ payload }) => {
@@ -474,14 +463,31 @@ function enterGame(room, oppId, size, oppNameFinal, myNameFinal) {
     addSysMsg('حریف پیدا شد');
 }
 
+// ============================================
+// ساخت صفحه - ✅ استفاده از pointerdown برای سرعت
+// ============================================
 function buildBoard() {
     boardEl.innerHTML = '';
     boardEl.style.setProperty('--n', state.boardSize);
     const total = state.boardSize * state.boardSize;
+    
     for (let i = 0; i < total; i++) {
         const c = document.createElement('div');
         c.className = 'cell';
-        c.addEventListener('click', () => onCellClick(i));
+        c.dataset.i = i;
+        
+        // ✅ pointerdown = فوری، بدون تأخیر ۳۰۰ms موبایل
+        c.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            onCellClick(i);
+        }, { passive: false });
+        
+        // پشتیبانی از مرورگرهای قدیمی
+        c.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            onCellClick(i);
+        }, { passive: false });
+        
         boardEl.appendChild(c);
     }
 }
@@ -494,7 +500,6 @@ function setupGameChannel() {
     
     gameChannel
         .on('broadcast', { event: 'move' }, ({ payload }) => {
-            // ضد تقلب: چک‌های سختگیرانه
             if (payload.symbol === state.mySymbol) return;
             if (!state.active) return;
             if (state.board[payload.i] !== null) return;
@@ -525,7 +530,7 @@ function setupGameChannel() {
 }
 
 // ============================================
-// کلیک روی خانه (✅ فوری!)
+// کلیک (✅ فوری)
 // ============================================
 function onCellClick(i) {
     if (!state.active) return;
@@ -533,17 +538,17 @@ function onCellClick(i) {
     if (state.currentPlayer !== state.mySymbol) return;
     if (i < 0 || i >= state.board.length) return;
     
-    // ۱. فوری حرکت رو اعمال کن
+    // اعمال فوری
     applyMove(i, state.mySymbol);
     
-    // ۲. فوری به حریف بفرست
+    // ارسال فوری
     gameChannel.send({
         type: 'broadcast',
         event: 'move',
         payload: { i: i, symbol: state.mySymbol }
     });
     
-    // ۳. در پس‌زمینه توی دیتابیس ذخیره کن (بدون انتظار)
+    // ذخیره در پس‌زمینه
     sb.from('moves').insert({
         game_id: state.roomId,
         cell_index: i,
@@ -565,7 +570,6 @@ function applyMove(i, symbol) {
     cell.textContent = symbol;
     cell.classList.add('taken', symbol.toLowerCase());
     
-    // چک برنده
     const result = checkWinner();
     if (result) {
         state.active = false;
@@ -586,7 +590,6 @@ function applyMove(i, symbol) {
         return;
     }
     
-    // تغییر نوبت
     state.currentPlayer = (state.currentPlayer === 'X') ? 'O' : 'X';
     updateTurnUI();
 }
@@ -698,7 +701,6 @@ function sendChat() {
     const t = clean(chatInput.value.trim());
     if (!t || state.chatLocked || !gameChannel) return;
     
-    // Rate limit: 500ms بین پیام‌ها
     const now = Date.now();
     if (now - state.lastMsgTime < 500) return;
     state.lastMsgTime = now;
