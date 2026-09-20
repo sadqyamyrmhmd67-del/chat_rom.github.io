@@ -2,24 +2,52 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>دوز آنلاین</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0"></script>
 <style>
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { touch-action: manipulation; }
 body { font-family: Tahoma, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #1a1a2e; color: #eee; padding: 15px; }
 h1 { color: #e94560; margin: 5px 0 15px; font-size: 24px; }
 #lobby, #game { display: none; width: 100%; max-width: 380px; text-align: center; }
 #lobby { display: block; }
-button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #0f3460; color: #fff; border: none; border-radius: 8px; font-family: inherit; transition: 0.15s; }
-button:hover { background: #16213e; }
+button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #0f3460; color: #fff; border: none; border-radius: 8px; font-family: inherit; touch-action: manipulation; }
 button:disabled { background: #555; cursor: not-allowed; }
 #status { margin-top: 15px; color: #aaa; }
 
 /* صفحه بازی */
-.board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: #16213e; padding: 10px; border-radius: 12px; margin: 15px auto; width: 100%; max-width: 300px; aspect-ratio: 1; }
-.cell { background: #0f3460; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 55px; font-weight: bold; cursor: pointer; user-select: none; aspect-ratio: 1; transition: background 0.15s; }
-.cell:hover:not(.taken) { background: #1a1a4e; }
+.board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    background: #16213e;
+    padding: 10px;
+    border-radius: 12px;
+    margin: 15px auto;
+    width: 100%;
+    max-width: 300px;
+    aspect-ratio: 1;
+    touch-action: none;
+}
+.cell {
+    background: #0f3460;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 55px;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    aspect-ratio: 1;
+    /* ⚡ رفع تأخیر لمس */
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    /* ⚡ بهینه‌سازی رندر */
+    contain: layout style paint;
+}
 .cell.taken { cursor: default; }
 .cell.x { color: #e94560; }
 .cell.o { color: #4ecdc4; }
@@ -45,7 +73,6 @@ button:disabled { background: #555; cursor: not-allowed; }
 #chat-input { flex: 1; padding: 8px 10px; border-radius: 8px; border: none; background: #0f3460; color: #fff; font-family: inherit; font-size: 13px; outline: none; min-width: 0; }
 #chat-input::placeholder { color: #888; }
 #send-btn { padding: 8px 14px; font-size: 13px; margin: 0; background: #e94560; }
-#send-btn:hover { background: #c73650; }
 #restart-btn { margin-top: 10px; }
 </style>
 </head>
@@ -149,16 +176,31 @@ function startGame(room, opponentId) {
     gameStatusDiv.textContent = '';
     gameStatusDiv.className = '';
 
+    // ⚡ ساخت سلول‌ها با DocumentFragment (یک بار به DOM اضافه می‌شن)
+    const frag = document.createDocumentFragment();
     for (let i = 0; i < 9; i++) {
         const c = document.createElement('div');
         c.className = 'cell';
         c.dataset.index = i;
-        c.addEventListener('click', () => onCellClick(i));
-        boardDiv.appendChild(c);
+        // ⚡ pointerdown به جای click (فوری، بدون تأخیر ۳۰۰ms موبایل)
+        c.addEventListener('pointerdown', onCellPointer, { passive: false });
+        // 🔄 fallback برای مرورگرهای قدیمی که pointerdown ندارن
+        if (!window.PointerEvent) {
+            c.addEventListener('touchstart', onCellPointer, { passive: false });
+        }
+        frag.appendChild(c);
     }
+    boardDiv.appendChild(frag);
 
     setupGame(room);
     resetState();
+}
+
+// ⚡ تابع جداگانه برای مدیریت لمس فوری
+function onCellPointer(e) {
+    e.preventDefault();
+    const i = parseInt(e.currentTarget.dataset.index);
+    onCellClick(i);
 }
 
 function resetState() {
@@ -199,12 +241,17 @@ function onCellClick(i) {
     if (state.board[i] !== null) return;
     if (state.currentPlayer !== state.mySymbol) return;
 
+    // ۱. فوری اعمال کن (بدون انتظار برای شبکه)
     applyMove(i, state.mySymbol);
-    gameChannel.send({
-        type: 'broadcast',
-        event: 'move',
-        payload: { index: i, symbol: state.mySymbol }
-    });
+
+    // ۲. در پس‌زمینه به حریف بفرست (بدون await)
+    if (gameChannel) {
+        gameChannel.send({
+            type: 'broadcast',
+            event: 'move',
+            payload: { index: i, symbol: state.mySymbol }
+        });
+    }
 }
 
 // ============ اعمال حرکت ============
@@ -212,6 +259,7 @@ function applyMove(i, symbol) {
     if (state.board[i] !== null) return;
     state.board[i] = symbol;
     const cell = boardDiv.children[i];
+    // ⚡ فقط کلاس اضافه می‌کنیم — CSS ::after محتوا رو فوری نشون می‌ده
     cell.classList.add(symbol.toLowerCase(), 'taken');
 
     const w = checkWinner(state.board);
@@ -294,11 +342,10 @@ function resetGame() {
 
     [...boardDiv.children].forEach(c => {
         c.className = 'cell';
-        c.textContent = '';
     });
     chatMessages.innerHTML = '';
     updateUI();
 }
 </script>
 </body>
-            </html>
+</html>
