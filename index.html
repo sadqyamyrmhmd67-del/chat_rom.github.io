@@ -31,9 +31,11 @@ button{padding:12px 24px;font-size:15px;cursor:pointer;background:#8b6f47;color:
 .cell.taken{cursor:default}
 .cell.x{color:#b5453a}.cell.o{color:#2e7d6f}
 .cell.x::after{content:'X'}.cell.o::after{content:'O'}
-#game-status{font-size:17px;margin:6px 0;min-height:24px;font-weight:bold}
-#turn-indicator{margin:4px 0;color:#8b6f47;font-size:13px;min-height:18px}
-#game-status.win{color:#2e7d6f}#game-status.lose{color:#b5453a}#game-status.draw{color:#c48a1a}
+#game-status,#off-status{font-size:17px;margin:6px 0;min-height:24px;font-weight:bold}
+#turn-indicator,#off-turn{margin:4px 0;color:#8b6f47;font-size:13px;min-height:18px}
+#game-status.win,#off-status.win{color:#2e7d6f}
+#game-status.lose,#off-status.lose{color:#b5453a}
+#game-status.draw,#off-status.draw{color:#c48a1a}
 #chat-section{margin:12px auto 0;background:#f0e4c8;border-radius:10px;padding:8px;width:100%;max-width:320px;border:1px solid #c9b88f}
 #chat-header{font-size:12px;color:#8b6f47;margin-bottom:6px;border-bottom:1px solid #c9b88f;padding-bottom:4px}
 #chat-messages{height:110px;overflow-y:auto;padding:3px;display:flex;flex-direction:column;gap:4px;margin-bottom:6px}
@@ -44,7 +46,8 @@ button{padding:12px 24px;font-size:15px;cursor:pointer;background:#8b6f47;color:
 #chat-input-row{display:flex;gap:5px}
 #chat-input{flex:1;padding:7px 9px;border-radius:7px;border:1px solid #c9b88f;background:#fffaf0;color:#3a2e1f;font-family:inherit;font-size:12px;outline:none;min-width:0;-webkit-user-select:text;user-select:text}
 #send-btn{padding:7px 12px;font-size:12px;margin:0;background:#b5453a}
-#restart-btn{margin-top:8px;background:#2e7d6f}
+#restart-btn,#off-restart{margin-top:8px;background:#2e7d6f}
+#off-back{margin-top:8px;background:#8b6f47}
 </style>
 </head>
 <body>
@@ -56,6 +59,7 @@ button{padding:12px 24px;font-size:15px;cursor:pointer;background:#8b6f47;color:
 </div>
 
 <div class="panels">
+  <!-- ══ پنل آنلاین ══ -->
   <div class="panel active" id="panel-online">
     <div id="size-select">
       <p style="color:#5a4630;font-size:14px;margin:8px 0">اندازه تخته را انتخاب کن:</p>
@@ -83,182 +87,286 @@ button{padding:12px 24px;font-size:15px;cursor:pointer;background:#8b6f47;color:
       <button id="restart-btn" style="display:none;">بازی جدید</button>
     </div>
   </div>
-  <div class="panel" id="panel-offline"><p style="color:#5a4630;font-size:14px;margin:8px 0">به‌زودی: بازی با ربات</p></div>
+
+  <!-- ══ پنل آفلاین ══ -->
+  <div class="panel" id="panel-offline">
+    <div id="off-size">
+      <p style="color:#5a4630;font-size:14px;margin:8px 0">بازی با ربات — اندازه تخته:</p>
+      <div class="line" data-size="4"><span>۴×۴</span><span class="arrow2">›</span></div>
+      <div class="line" data-size="7"><span>۷×۷</span><span class="arrow2">›</span></div>
+      <div class="line" data-size="10"><span>۱۰×۱۰</span><span class="arrow2">›</span></div>
+    </div>
+    <div id="off-game" style="display:none">
+      <div id="off-status"></div>
+      <div id="off-turn"></div>
+      <div class="board" id="off-board"></div>
+      <button id="off-restart" style="display:none;">بازی جدید</button>
+      <button id="off-back">بازگشت</button>
+    </div>
+  </div>
+
+  <!-- ══ پنل ارتباط با من ══ -->
   <div class="panel" id="panel-contact">
     <p style="color:#5a4630;font-size:14px;margin:8px 0">راه‌های ارتباطی:</p>
-    <div class="line"><span>ایمیل</span><span class="arrow2">›</span></div>
-    <div class="line"><span>تلگرام</span><span class="arrow2">›</span></div>
-    <div class="line"><span>واتساپ</span><span class="arrow2">›</span></div>
+    <a class="line" href="mailto:you@example.com" style="text-decoration:none"><span>ایمیل</span><span class="arrow2">›</span></a>
+    <a class="line" href="https://t.me/username" target="_blank" style="text-decoration:none"><span>تلگرام</span><span class="arrow2">›</span></a>
+    <a class="line" href="https://wa.me/989000000000" target="_blank" style="text-decoration:none"><span>واتساپ</span><span class="arrow2">›</span></a>
+    <p style="color:#8b6f47;font-size:12px;margin-top:20px">ساخته‌شده با ❤</p>
   </div>
 </div>
 
 <script>
-// جلوگیری از زوم با دابل‌تپ و pinch
 document.addEventListener('dblclick',e=>e.preventDefault(),{passive:false});
 document.addEventListener('gesturestart',e=>e.preventDefault());
 document.addEventListener('touchmove',e=>{if(e.touches.length>1)e.preventDefault()},{passive:false});
 
-const SUPABASE_URL='https://plpkixgydnsilujlwizi.supabase.co';
-const SUPABASE_ANON_KEY='sb_publishable_-obcx5r6P_a4PmxF6_dikw_XIoW6OYQ';
-const {createClient}=supabase;
-const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const URL='https://plpkixgydnsilujlwizi.supabase.co';
+const KEY='sb_publishable_-obcx5r6P_a4PmxF6_dikw_XIoW6OYQ';
+const sb=supabase.createClient(URL,KEY);
 
-const state={board:[],size:3,currentPlayer:'X',winner:null,mySymbol:null,started:false,active:false,myId:'p_'+Math.random().toString(36).substring(2,9)};
+let uid=null,gid=null,gstate=null,ch=null,searching=false;
 const $=id=>document.getElementById(id);
 const sizeSelect=$('size-select'),waitingDiv=$('waiting'),gameDiv=$('game');
 const boardDiv=$('board'),gameStatusDiv=$('game-status');
 const turnIndicator=$('turn-indicator'),restartBtn=$('restart-btn');
 const chatMessages=$('chat-messages'),chatInput=$('chat-input'),sendBtn=$('send-btn');
-let lobbyChannel=null,gameChannel=null,searching=false;
 
+// ─── Auth ───
+(async()=>{
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session) uid = session.user.id;
+  else {
+    const { data, error } = await sb.auth.signInAnonymously();
+    if(error){ console.error('auth:', error.message); return; }
+    uid = data.user.id;
+  }
+})();
+
+// ─── Tabs ───
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
-  t.classList.add('active');$('panel-'+t.dataset.tab).classList.add('active');
-  if(t.dataset.tab!=='online'&&searching)cancelSearch();
+  t.classList.add('active'); $('panel-'+t.dataset.tab).classList.add('active');
+  if(t.dataset.tab!=='online' && searching) cancelSearch();
 }));
 
+// ─── Size select آنلاین ───
 document.querySelectorAll('#size-select .line').forEach(l=>l.addEventListener('click',()=>{
-  state.size=parseInt(l.dataset.size);
-  sizeSelect.style.display='none';waitingDiv.style.display='flex';startSearch();
+  if(!uid){ alert('در حال اتصال... دوباره امتحان کن'); return; }
+  startSearch(parseInt(l.dataset.size));
 }));
 
 $('cancel-btn').addEventListener('click',cancelSearch);
 
-function cancelSearch(){
-  searching=false;
-  if(lobbyChannel){lobbyChannel.unsubscribe();lobbyChannel=null;}
-  waitingDiv.style.display='none';sizeSelect.style.display='block';state.started=false;
-}
-
-function startSearch(){
+async function startSearch(size){
   searching=true;
-  lobbyChannel=sb.channel('public-lobby');
-  lobbyChannel.on('broadcast',{event:'looking'},({payload})=>{
-    if(!searching)return;
-    if(payload.playerId!==state.myId&&!state.started){
-      const room=[state.myId,payload.playerId].sort().join('-');
-      lobbyChannel.send({type:'broadcast',event:'room',payload:{room,creator:state.myId,size:state.size}});
-      startGame(room,payload.playerId);
-    }
-  }).on('broadcast',{event:'room'},({payload})=>{
-    if(!searching)return;
-    if(!state.started&&payload.creator!==state.myId){state.size=payload.size||3;startGame(payload.room,payload.creator);}
-  }).subscribe(s=>{
-    if(s==='SUBSCRIBED'&&searching)lobbyChannel.send({type:'broadcast',event:'looking',payload:{playerId:state.myId}});
-  });
+  sizeSelect.style.display='none'; waitingDiv.style.display='flex';
+  const { data, error } = await sb.rpc('find_match',{p_size:size});
+  if(error||!data){ searching=false; alert('خطا: '+(error?.message||'?')); return cancelSearch(); }
+  gid = data;
+  subscribeGame();
 }
 
-function startGame(room,opponentId){
-  if(state.started)return;
-  state.started=true;state.active=true;searching=false;
-  state.mySymbol=(state.myId<opponentId)?'X':'O';
-  if(lobbyChannel){lobbyChannel.unsubscribe();lobbyChannel=null;}
-  waitingDiv.style.display='none';gameDiv.style.display='block';
-  boardDiv.innerHTML='';chatMessages.innerHTML='';gameStatusDiv.textContent='';gameStatusDiv.className='';
-  const n=state.size;
-  boardDiv.style.gridTemplateColumns=`repeat(${n},1fr)`;
-  const cf=n===4?'42px':n===7?'26px':'18px';
-  const frag=document.createDocumentFragment();
+async function cancelSearch(){
+  searching=false;
+  if(ch){ sb.removeChannel(ch); ch=null; }
+  try { await sb.rpc('cancel_search'); } catch(e){}
+  waitingDiv.style.display='none'; sizeSelect.style.display='block';
+  gameDiv.style.display='none'; gid=null; gstate=null;
+}
+
+function subscribeGame(){
+  if(ch) sb.removeChannel(ch);
+  ch = sb.channel('g-'+gid)
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'games',filter:'id=eq.'+gid},
+        p=>renderGame(p.new))
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'game_id=eq.'+gid},
+        p=>addMsg(p.new.text, p.new.user_id===uid?'me':'opponent'))
+    .subscribe(async()=>{
+      const { data } = await sb.from('games').select('*').eq('id',gid).single();
+      if(data) renderGame(data);
+    });
+}
+
+function renderGame(g){
+  gstate = g;
+  if(g.status==='waiting') return;
+
+  if(waitingDiv.style.display==='flex' || gameDiv.style.display==='none'){
+    waitingDiv.style.display='none'; gameDiv.style.display='block';
+    buildBoard(boardDiv, g.size, onCellPointer);
+  }
+
+  const my = g.player_x===uid ? 'X' : 'O';
+
+  for(let i=0;i<g.board.length;i++){
+    const cell = boardDiv.children[i];
+    const v = g.board[i];
+    const cls = 'cell'+(v?' '+v.toLowerCase()+' taken':'');
+    if(cell.className !== cls) cell.className = cls;
+  }
+
+  if(g.winner){
+    gameStatusDiv.className='';
+    if(g.winner==='draw'){ gameStatusDiv.textContent='مساوی!'; gameStatusDiv.classList.add('draw'); }
+    else if(g.winner===my){ gameStatusDiv.textContent='برنده شدی!'; gameStatusDiv.classList.add('win'); }
+    else { gameStatusDiv.textContent='باختی!'; gameStatusDiv.classList.add('lose'); }
+    turnIndicator.textContent='';
+    restartBtn.style.display='block';
+  } else {
+    gameStatusDiv.textContent=''; gameStatusDiv.className='';
+    turnIndicator.textContent = g.current_turn===my ? 'نوبت شماست' : 'نوبت حریف';
+    restartBtn.style.display='none';
+  }
+}
+
+function buildBoard(container, n, handler){
+  container.style.gridTemplateColumns=`repeat(${n},1fr)`;
+  const cf = n===4?'42px':n===7?'26px':'18px';
+  const frag = document.createDocumentFragment();
   for(let i=0;i<n*n;i++){
     const c=document.createElement('div');
-    c.className='cell';c.dataset.index=i;c.style.fontSize=cf;
-    c.addEventListener('pointerdown',onCellPointer,{passive:false});
-    if(!window.PointerEvent)c.addEventListener('touchstart',onCellPointer,{passive:false});
+    c.className='cell'; c.dataset.index=i; c.style.fontSize=cf;
+    c.addEventListener('pointerdown',handler,{passive:false});
+    if(!window.PointerEvent) c.addEventListener('touchstart',handler,{passive:false});
     frag.appendChild(c);
   }
-  boardDiv.appendChild(frag);
-  setupGame(room);resetState();
+  container.innerHTML=''; container.appendChild(frag);
 }
 
-function onCellPointer(e){e.preventDefault();onCellClick(parseInt(e.currentTarget.dataset.index));}
+function onCellPointer(e){ e.preventDefault(); onCellClick(parseInt(e.currentTarget.dataset.index)); }
 
-function resetState(){
-  state.board=Array(state.size*state.size).fill(null);
-  state.currentPlayer='X';state.winner=null;state.active=true;updateUI();
-}
+// ⚡ حرکت فوری با نمایش آنی + اعتبارسنجی سرور
+async function onCellClick(i){
+  if(!gstate || gstate.status!=='playing' || gstate.winner) return;
+  const my = gstate.player_x===uid ? 'X' : 'O';
+  if(gstate.current_turn!==my) return;
+  if(gstate.board[i]!==null) return;
 
-function setupGame(room){
-  gameChannel=sb.channel('game-'+room);
-  gameChannel.on('broadcast',{event:'move'},({payload})=>{
-    if(payload.symbol!==state.mySymbol&&state.board[payload.index]===null&&state.active)
-      applyMove(payload.index,payload.symbol);
-  }).on('broadcast',{event:'chat'},({payload})=>addMsg(payload.text,'opponent'))
-  .on('broadcast',{event:'restart'},()=>resetGame())
-  .subscribe(s=>{if(s==='SUBSCRIBED'){turnIndicator.textContent=`شما ${state.mySymbol} هستید`;updateUI();}});
-}
+  // نمایش فوری مهره
+  const cell = boardDiv.children[i];
+  cell.classList.add(my.toLowerCase(),'taken');
+  turnIndicator.textContent='نوبت حریف';
+  gstate.board[i]=my;   // ← مهم: local state هم آپدیت تا کلیک دوباره رد بشه
+  gstate.current_turn = my==='X'?'O':'X';
 
-function onCellClick(i){
-  if(!state.active||state.winner||state.board[i]!==null||state.currentPlayer!==state.mySymbol)return;
-  applyMove(i,state.mySymbol);
-  if(gameChannel)gameChannel.send({type:'broadcast',event:'move',payload:{index:i,symbol:state.mySymbol}});
-}
-
-function applyMove(i,symbol){
-  if(state.board[i]!==null)return;
-  state.board[i]=symbol;
-  boardDiv.children[i].classList.add(symbol.toLowerCase(),'taken');
-  const w=checkWinner(state.board);
-  if(w){state.winner=w;state.active=false;showResult(w);restartBtn.style.display='block';}
-  else state.currentPlayer=state.currentPlayer==='X'?'O':'X';
-  updateUI();
-}
-
-function checkWinner(b){
-  const n=state.size,lines=[];
-  for(let r=0;r<n;r++){
-    const row=[],col=[];
-    for(let c=0;c<n;c++){row.push(r*n+c);col.push(c*n+r);}
-    lines.push(row);lines.push(col);
+  const { error } = await sb.rpc('make_move',{p_game_id:gid,p_cell:i});
+  if(error){
+    // rollback در صورت رد سرور
+    cell.classList.remove(my.toLowerCase(),'taken');
+    gstate.board[i]=null;
+    gstate.current_turn = my;
+    turnIndicator.textContent='نوبت شماست';
+    console.warn('move rejected:', error.message);
   }
-  const d1=[],d2=[];
-  for(let i=0;i<n;i++){d1.push(i*n+i);d2.push(i*n+(n-1-i));}
-  lines.push(d1);lines.push(d2);
-  for(const L of lines){const v=b[L[0]];if(v&&L.every(x=>b[x]===v))return v;}
-  return b.every(x=>x)?'draw':null;
 }
 
-function showResult(w){
-  gameStatusDiv.className='';
-  if(w==='draw'){gameStatusDiv.textContent='مساوی!';gameStatusDiv.classList.add('draw');}
-  else if(w===state.mySymbol){gameStatusDiv.textContent='برنده شدی!';gameStatusDiv.classList.add('win');}
-  else{gameStatusDiv.textContent='باختی!';gameStatusDiv.classList.add('lose');}
-  turnIndicator.textContent='';
-}
-
-function updateUI(){
-  if(!state.active||state.winner)return;
-  turnIndicator.textContent=state.currentPlayer===state.mySymbol?'نوبت شماست':'نوبت حریف';
-}
-
+// ─── Chat ───
 function addMsg(text,who){
   const d=document.createElement('div');
-  d.className='chat-msg '+who;d.textContent=text;
-  chatMessages.appendChild(d);chatMessages.scrollTop=chatMessages.scrollHeight;
+  d.className='chat-msg '+who; d.textContent=text;
+  chatMessages.appendChild(d); chatMessages.scrollTop=chatMessages.scrollHeight;
 }
-
-function sendChat(){
-  const t=chatInput.value.trim();
-  if(!t||!gameChannel)return;
-  addMsg(t,'me');
-  gameChannel.send({type:'broadcast',event:'chat',payload:{text:t}});
-  chatInput.value='';chatInput.focus();
+async function sendChat(){
+  const t=chatInput.value.trim(); if(!t||!gid) return;
+  chatInput.value='';
+  const { error } = await sb.rpc('send_message',{p_game_id:gid,p_text:t});
+  if(error) console.warn('chat rejected:', error.message);
 }
 sendBtn.addEventListener('click',sendChat);
-chatInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat();}});
+chatInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();sendChat();} });
 
-restartBtn.addEventListener('click',()=>{
-  if(gameChannel)gameChannel.send({type:'broadcast',event:'restart',payload:{}});
-  resetGame();
+restartBtn.addEventListener('click',async()=>{
+  if(!gid) return;
+  chatMessages.innerHTML='';
+  await sb.rpc('request_restart',{p_game_id:gid});
 });
 
-function resetGame(){
-  state.board=Array(state.size*state.size).fill(null);
-  state.currentPlayer='X';state.winner=null;state.active=true;
-  restartBtn.style.display='none';
-  gameStatusDiv.textContent='بازی جدید!';gameStatusDiv.className='';
-  [...boardDiv.children].forEach(c=>c.className='cell');
-  chatMessages.innerHTML='';updateUI();
+// ══════════════════════════════════════════
+// ══ بازی آفلاین با ربات ══
+// ══════════════════════════════════════════
+const off={board:[],size:0,turn:'X',winner:null,active:false};
+const offSize=$('off-size'),offGame=$('off-game');
+const offBoard=$('off-board'),offStatus=$('off-status');
+const offTurn=$('off-turn'),offRestart=$('off-restart'),offBack=$('off-back');
+
+document.querySelectorAll('#off-size .line').forEach(l=>l.addEventListener('click',()=>{
+  off.size=parseInt(l.dataset.size);
+  offSize.style.display='none'; offGame.style.display='block';
+  startOffline();
+}));
+
+offBack.addEventListener('click',()=>{
+  offGame.style.display='none'; offSize.style.display='block'; off.active=false;
+});
+
+offRestart.addEventListener('click',()=>{ chatMessages; offRestart.style.display='none'; startOffline(); });
+
+function startOffline(){
+  off.board=Array(off.size*off.size).fill(null);
+  off.turn='X'; off.winner=null; off.active=true;
+  offStatus.textContent=''; offStatus.className=''; offTurn.textContent='نوبت شماست';
+  offRestart.style.display='none';
+  buildBoard(offBoard, off.size, onOffPointer);
+}
+
+function onOffPointer(e){ e.preventDefault(); onOffClick(parseInt(e.currentTarget.dataset.index)); }
+
+function onOffClick(i){
+  if(!off.active || off.winner || off.board[i]!==null || off.turn!=='X') return;
+  doOffMove(i,'X');
+  if(off.winner) return;
+  off.turn='O'; offTurn.textContent='نوبت ربات...';
+  setTimeout(()=>{
+    const mv = botMove(off.board, off.size, 'O', 'X');
+    if(mv>=0) doOffMove(mv,'O');
+    if(!off.winner){ off.turn='X'; offTurn.textContent='نوبت شماست'; }
+  }, 350);
+}
+
+function doOffMove(i,sym){
+  off.board[i]=sym;
+  offBoard.children[i].classList.add(sym.toLowerCase(),'taken');
+  const w = checkLine(off.board, off.size, sym) ? sym
+          : off.board.every(x=>x) ? 'draw' : null;
+  if(w){
+    off.winner=w; off.active=false;
+    offStatus.className='';
+    if(w==='draw'){ offStatus.textContent='مساوی!'; offStatus.classList.add('draw'); }
+    else if(w==='X'){ offStatus.textContent='برنده شدی!'; offStatus.classList.add('win'); }
+    else { offStatus.textContent='ربات برد!'; offStatus.classList.add('lose'); }
+    offTurn.textContent='';
+    offRestart.style.display='block';
+  }
+}
+
+function lineSets(n){
+  const lines=[];
+  for(let r=0;r<n;r++){const a=[];for(let c=0;c<n;c++)a.push(r*n+c);lines.push(a);}
+  for(let c=0;c<n;c++){const a=[];for(let r=0;r<n;r++)a.push(r*n+c);lines.push(a);}
+  const d1=[],d2=[]; for(let i=0;i<n;i++){d1.push(i*n+i);d2.push(i*n+(n-1-i));}
+  lines.push(d1);lines.push(d2);
+  return lines;
+}
+const _cache={};
+function checkLine(b,n,sym){
+  const lines = _cache[n] || (_cache[n]=lineSets(n));
+  for(const L of lines){ let ok=true; for(const x of L){ if(b[x]!==sym){ok=false;break;} } if(ok) return true; }
+  return false;
+}
+
+// ربات: اول برد، بعد بلاک، بعد تصادفی (با ترجیح مرکز)
+function botMove(b,n,me,opp){
+  const empty=[]; for(let i=0;i<n*n;i++) if(b[i]===null) empty.push(i);
+  if(!empty.length) return -1;
+  // تلاش برای برد
+  for(const i of empty){ b[i]=me; const w=checkLine(b,n,me); b[i]=null; if(w) return i; }
+  // بلاک حریف
+  for(const i of empty){ b[i]=opp; const w=checkLine(b,n,opp); b[i]=null; if(w) return i; }
+  // ترجیح مرکز
+  const c=Math.floor(n*n/2);
+  if(b[c]===null) return c;
+  return empty[Math.floor(Math.random()*empty.length)];
 }
 </script>
 </body>
